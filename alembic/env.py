@@ -18,7 +18,10 @@ from app.db import models  # noqa: F401  (import registers models on Base.metada
 from app.db.base import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# A caller (the test suite) may have set the URL explicitly; only fall back to
+# application settings when it hasn't.
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
