@@ -1,0 +1,33 @@
+# Dev-only: exposed ports, hot reload, source mounted over the image copy.
+#
+# Host ports are deliberately off-by-one from the defaults: a machine that
+# already runs its own Postgres/Redis would otherwise shadow these containers.
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+
+  redis:
+    ports:
+      - "6380:6379"
+
+  api:
+    environment:
+      DEBUG: "true"
+      DB_ECHO: "false"
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    ports:
+      - "8000:8000"
+    command:
+      - sh
+      - -c
+      - "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  worker:
+    environment:
+      DEBUG: "true"
+    volumes:
+      - ./app:/app/app
+    command: ["arq", "app.worker.WorkerSettings", "--watch", "app"]
