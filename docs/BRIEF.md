@@ -205,3 +205,43 @@ isn't real.
 
 Accounts and login. Chess.com support. Running our own engine. Comparing two players.
 Real-time updates. Anything that isn't the single-username report.
+
+## Planned after v1: puzzles
+
+Once steps 1–9 are shipped, the project gains a puzzle feature. It is step 10, not a
+v1 concern, and nothing in steps 1–9 should be delayed for it — but two decisions in
+the pipeline exist to keep the door open, so they must not be undone.
+
+Two sources of puzzles:
+
+1. **The player's own mistakes.** Positions pulled from their real games — the moments
+   the engine already flagged as a blunder or mistake. The player replays the position
+   and gets the chance to find what they missed. This is the reason the feature exists:
+   generic tactics are everywhere, tactics from your own bullet collapse last March
+   are not.
+2. **Random puzzles with themes.** Fork, pin, back-rank mate, endgame, and so on, so
+   the feature still has something to offer a player whose year was mostly clean.
+
+### What this already constrains
+
+- **`evals=true` stays on the game export.** The per-move `analysis` array is the only
+  thing that identifies *where* in a game the player went wrong; the per-player
+  `{inaccuracy, mistake, blunder, acpl, accuracy}` summary gives counts but no
+  positions. It roughly triples the payload and no v1 report section reads it. Keep it
+  anyway. See `lichess_include_evals`.
+- **Ingest decides how much of that array survives.** The `games` schema stores only
+  the first 12 plies of the opening line and has nowhere to put per-ply evals, so
+  puzzles will need their own table rather than a column on `games`. Step 3 should at
+  minimum not make this harder — dropping the analysis array on the floor without a
+  thought is the thing to avoid.
+
+### Open, to settle when the step starts
+
+- Whether to persist candidate positions during ingest or recompute them later from a
+  re-fetch. Storing costs space on every player; recomputing costs a second export.
+- How to get themed puzzles: the Lichess puzzle API, or their downloadable puzzle
+  database (which carries theme tags already).
+- Position storage format — FEN plus the move played and the engine's preferred move
+  is the obvious minimum.
+- Whether the player still has to be logged out and anonymous, i.e. whether puzzle
+  progress is per-session or not tracked at all. Accounts remain a v1 non-goal.
