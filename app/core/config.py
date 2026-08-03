@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     lichess_timeout_s: float = 30.0
     lichess_stream_timeout_s: float = 600.0
     lichess_max_retries: int = 4
+    #: Per-move engine evals in the game export. Roughly triples the payload and
+    #: no v1 report section reads it, but it is the only source of the eval
+    #: swings a later puzzle feature needs to find tactical positions -- so it
+    #: stays on, and ingest is what decides how much of it to keep.
+    lichess_include_evals: bool = True
 
     # Report window and ingest
     report_window_days: int = 365

@@ -1,0 +1,132 @@
+{
+ "id": "zhigalko_sergei",
+ "username": "Zhigalko_Sergei",
+ "perfs": {
+  "ultraBullet": {
+   "games": 23417,
+   "rating": 2542,
+   "rd": 52,
+   "prog": 10
+  },
+  "bullet": {
+   "games": 81319,
+   "rating": 3133,
+   "rd": 45,
+   "prog": -9
+  },
+  "blitz": {
+   "games": 17834,
+   "rating": 2808,
+   "rd": 47,
+   "prog": 13
+  },
+  "rapid": {
+   "games": 446,
+   "rating": 2948,
+   "rd": 184,
+   "prog": -37,
+   "prov": true
+  },
+  "classical": {
+   "games": 0,
+   "rating": 1500,
+   "rd": 500,
+   "prog": 0,
+   "prov": true
+  },
+  "correspondence": {
+   "games": 0,
+   "rating": 1500,
+   "rd": 500,
+   "prog": 0,
+   "prov": true
+  },
+  "chess960": {
+   "games": 2457,
+   "rating": 2767,
+   "rd": 87,
+   "prog": 10
+  },
+  "kingOfTheHill": {
+   "games": 2527,
+   "rating": 2667,
+   "rd": 93,
+   "prog": -11
+  },
+  "threeCheck": {
+   "games": 2821,
+   "rating": 2537,
+   "rd": 91,
+   "prog": 12
+  },
+  "racingKings": {
+   "games": 2,
+   "rating": 1698,
+   "rd": 371,
+   "prog": 0,
+   "prov": true
+  },
+  "crazyhouse": {
+   "games": 2068,
+   "rating": 2631,
+   "rd": 87,
+   "prog": -7
+  },
+  "puzzle": {
+   "games": 2967,
+   "rating": 3055,
+   "rd": 140,
+   "prog": 0,
+   "prov": true
+  },
+  "storm": {
+   "runs": 89,
+   "score": 91
+  },
+  "racer": {
+   "runs": 30,
+   "score": 105
+  },
+  "streak": {
+   "runs": 1,
+   "score": 25
+  }
+ },
+ "title": "GM",
+ "patron": true,
+ "patronColor": 10,
+ "createdAt": 1537451857464,
+ "profile": {
+  "flag": "BY",
+  "location": "Minsk",
+  "bio": "European Blitz Champion (2017)\r\n\u041e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0430\u0439\u0442:\r\nhttps://zhigalko-sergei.com/\r\nzhigalko-sergei@mail.ru\r\nYoutube \u043a\u0430\u043d\u0430\u043b:\r\nhttps://www.youtube.com/c/SergeiZhigalkoChess\r\n\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430:\r\nhttps://www.donationalerts.com/r/zhigalko_sergei\r\n\r\n\u041e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u044b\u0439 \u043a\u043b\u0443\u0431 \u043d\u0430 Lichess:\r\nhttps://lichess.org/team/zhigalko_sergei-fan-club",
+  "realName": "Sergei Zhigalko",
+  "fideRating": 2695,
+  "links": "https://www.youtube.com/c/SergeiZhigalkoChess\r\nhttps://www.donationalerts.com/r/zhigalko_sergei\r\nhttps://www.facebook.com/sergei.zhigalko\r\nhttps://vk.com/serzhig1\r\nhttps://www.chess.com/member/Zhigalko_Sergei\r\nhttps://www.instagram.com/zhigalko_sergei/"
+ },
+ "seenAt": 1785757751574,
+ "playTime": {
+  "total": 19575618,
+  "tv": 5090666
+ },
+ "url": "https://lichess.org/@/Zhigalko_Sergei",
+ "count": {
+  "all": 159618,
+  "rated": 132896,
+  "draw": 6446,
+  "loss": 32073,
+  "win": 121099,
+  "bookmark": 0,
+  "playing": 0,
+  "import": 0,
+  "me": 0
+ },
+ "streamer": {
+  "twitch": {
+   "channel": "https://www.twitch.tv/chess_zhigalko_sergei"
+  },
+  "youTube": {
+   "channel": "https://www.youtube.com/channel/UCGrGLVn9PcP-mrDy3smR3xQ/live"
+  }
+ }
+}
