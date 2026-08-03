@@ -23,7 +23,7 @@ class RateLimitedError(LichessError):
 
 
 class LichessUnavailableError(LichessError):
-    """Network trouble or a 5xx that outlived the retry budget."""
+    """Network trouble, a truncated body, or a 5xx that outlived the budget."""
 
 
 class LichessResponseError(LichessError):

@@ -66,7 +66,7 @@ def _error_for(exc: Exception, context: str) -> LichessError:
     """The error to surface once retries are exhausted."""
     if isinstance(exc, RetryableStatusError) and exc.status_code == 429:
         return RateLimitedError(f"Rate limited by Lichess while {context}")
-    return LichessUnavailableError(f"Lichess unreachable while {context}: {exc}")
+    return LichessUnavailableError(f"Lichess request failed while {context}: {exc}")
 
 
 class LichessClient:
@@ -161,10 +161,15 @@ class LichessClient:
                         progressed = True
                         yield game
                 return
-            except (httpx.TransportError, RetryableStatusError) as exc:
+            except (httpx.TransportError, RetryableStatusError, json.JSONDecodeError) as exc:
+                # A half-written final line means the body was truncated, which
+                # is the same problem as a dropped connection -- and the caller
+                # should not have to catch a JSON error to hear about it.
+                #
                 # A retry that delivered new games earns a fresh budget. This
-                # still terminates: every reset consumed at least one game from
-                # a finite export.
+                # still terminates: on a repeat failure at the same point every
+                # game before it is deduped away, so nothing counts as progress
+                # and the budget runs out.
                 if progressed:
                     attempt = 0
                 await self._wait_before_retry(

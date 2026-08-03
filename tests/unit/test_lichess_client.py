@@ -6,7 +6,7 @@ and Lichess should not be paying for our test runs.
 """
 
 import json
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
 
 import httpx
@@ -16,11 +16,13 @@ import respx
 from app.core.config import settings
 from app.lichess import (
     LichessClient,
+    LichessResponseError,
     LichessUnavailableError,
     RateLimitedError,
     UserNotFoundError,
 )
 from app.lichess import client as client_module
+from app.lichess.client import BACKOFF_BASE_S
 from tests.conftest import load_fixture
 
 USERNAME = "Zhigalko_Sergei"
@@ -65,9 +67,6 @@ class TruncatedStream(httpx.AsyncByteStream):
         yield self._payload
         if self._then_raise is not None:
             raise self._then_raise
-
-    def __iter__(self) -> Iterator[bytes]:  # pragma: no cover - async only
-        raise NotImplementedError
 
 
 def ndjson_response(payload: str, **kwargs: object) -> httpx.Response:
@@ -153,6 +152,33 @@ async def test_stream_resumes_from_the_last_game_after_a_dropped_connection(
 
 
 @respx.mock
+async def test_a_body_that_stops_mid_game_is_treated_as_a_dropped_connection(
+    games_ndjson: str, game_ids: list[str], delays: list[float]
+) -> None:
+    """A truncated line is a transport problem wearing a JSON error's clothes.
+
+    The caller catches ``LichessError``; letting a raw ``JSONDecodeError`` out
+    would skip the retry entirely and surface as an unhandled crash.
+    """
+    lines = games_ndjson.splitlines()
+    half_written = "\n".join(lines[:2]) + "\n" + lines[2][:400]
+
+    route = respx.get(path=GAMES_PATH).mock(
+        side_effect=[
+            ndjson_response(half_written),
+            ndjson_response("\n".join(lines[2:]) + "\n"),
+        ]
+    )
+
+    async with LichessClient() as client:
+        games = await collect(client)
+
+    assert [g["id"] for g in games] == game_ids
+    assert route.call_count == 2
+    assert int(route.calls[1].request.url.params["since"]) == json.loads(lines[1])["createdAt"]
+
+
+@respx.mock
 async def test_a_stream_that_keeps_failing_without_progress_gives_up(
     delays: list[float],
 ) -> None:
@@ -219,6 +245,37 @@ async def test_unknown_user_is_final(delays: list[float]) -> None:
 
     assert route.call_count == 1, "a missing user will not appear if we ask again"
     assert delays == []
+
+
+@respx.mock
+async def test_an_unexpected_client_error_is_not_retried(delays: list[float]) -> None:
+    """A 403 means we asked wrongly; asking again the same way won't help."""
+    route = respx.get(path=PROFILE_PATH).mock(return_value=httpx.Response(403))
+
+    async with LichessClient() as client:
+        with pytest.raises(LichessResponseError) as caught:
+            await client.get_profile(USERNAME)
+
+    assert caught.value.status_code == 403
+    assert route.call_count == 1
+    assert delays == []
+
+
+@respx.mock
+async def test_a_retry_after_http_date_falls_back_to_backoff(delays: list[float]) -> None:
+    """Retry-After may legally be a date. We don't parse it -- we back off instead."""
+    respx.get(path=PROFILE_PATH).mock(
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"}),
+            httpx.Response(200, json=json.loads(load_fixture("user_profile.json"))),
+        ]
+    )
+
+    async with LichessClient() as client:
+        await client.get_profile(USERNAME)
+
+    assert len(delays) == 1
+    assert BACKOFF_BASE_S <= delays[0] < BACKOFF_BASE_S + 1, "an unparseable header must not stall"
 
 
 # ---------------------------------------------------------------------- parsing
