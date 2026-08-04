@@ -10,6 +10,7 @@ analysis block are all *per player*. The PK is therefore composite,
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -129,7 +130,8 @@ class Game(Base):
 
     #: Quality fields are populated only when the player had the game analysed.
     analysed: Mapped[bool] = mapped_column(Boolean, default=False)
-    accuracy: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    #: NUMERIC round-trips as Decimal, which is also what asyncpg binds.
+    accuracy: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     acpl: Mapped[int | None] = mapped_column(Integer)
     inaccuracies: Mapped[int | None] = mapped_column(Integer)
     mistakes: Mapped[int | None] = mapped_column(Integer)
