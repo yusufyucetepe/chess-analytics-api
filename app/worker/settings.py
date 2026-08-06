@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def startup(ctx: dict[str, Any]) -> None:
-    """``setdefault`` so a test can inject its own session factory via ``ctx``."""
+    # `setdefault` so a test can inject its own session factory via `ctx`.
     ctx.setdefault("session_factory", SessionLocal)
     logger.info("worker ready (max_tries=%d)", settings.worker_max_tries)
 
@@ -35,9 +35,9 @@ class WorkerSettings:
     """Read by arq off the class body, so every attribute is a plain value.
 
     ``arq.worker.get_kwargs`` picks these out of ``__dict__`` and hands them to
-    ``Worker(...)`` unchanged -- a property or a method here would be passed
-    along as the object itself. Parsing the Redis DSN opens no socket, so doing
-    it at import time is safe.
+    ``Worker(...)`` unchanged -- a property or a method would be passed along as
+    the object itself. Parsing the Redis DSN opens no socket, so import time is
+    safe for it.
     """
 
     functions: ClassVar[list[Any]] = [build_report]

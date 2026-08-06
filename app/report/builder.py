@@ -1,12 +1,9 @@
 """Assembling the report payload.
 
-Step 4 builds the envelope only: who the report is about, what window it covers,
-and how much of that window the engine actually looked at. The sections
-themselves land in step 5, one at a time, each replacing a ``None`` below.
-
-The envelope is not filler. Coverage is computed once, next to the counts it
-comes from, so that every section written later sits beside the caveat instead
-of quoting an accuracy figure on its own.
+Step 4 builds the envelope only; the sections land in step 5, one at a time,
+each replacing a ``None`` in ``SECTIONS``. Coverage is computed here, next to
+the counts it comes from, so that every section written later sits beside the
+caveat instead of quoting an accuracy figure on its own.
 """
 
 from datetime import UTC, datetime
@@ -28,11 +25,11 @@ SECTIONS = (
 def coverage(games_total: int, games_analysed: int) -> dict[str, Any]:
     """How much of the year has engine analysis behind it.
 
-    We never run Stockfish: accuracy, ACPL and the blunder counts exist only for
-    the games the player themselves asked Lichess to analyse, which is usually a
-    small and self-selected slice. So the report always states the denominator,
-    and below ``quality_min_analysed_games`` it says outright that the numbers
-    are not worth reading rather than printing an average that means nothing.
+    We never run Stockfish: the quality figures exist only for games the player
+    themselves asked Lichess to analyse, a small and self-selected slice. So the
+    report always states the denominator, and below
+    ``quality_min_analysed_games`` it says the numbers are not worth reading
+    rather than printing an average that means nothing.
     """
     reliable = games_analysed >= settings.quality_min_analysed_games
     return {

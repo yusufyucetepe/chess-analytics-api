@@ -1,10 +1,7 @@
 """Report endpoints: ask for one, poll it, read the latest.
 
 The POST is the only place in the app that talks to Lichess synchronously, and
-it does exactly one small call: confirm the account exists. Everything that
-takes time -- the export, the aggregation -- belongs to the worker, so the
-request returns a 202 and an id rather than holding a connection open for the
-minutes a year of bullet takes.
+only to confirm the account exists. Everything slow belongs to the worker.
 """
 
 import logging
@@ -49,9 +46,8 @@ async def request_report(
     """Return a fresh report if we have one, otherwise queue a new job.
 
     Rate limiting and the Redis dedupe lock arrive in step 7. Until then the
-    duplicate check is a database one, which is weaker -- two simultaneous
-    requests can both miss it -- but it already covers the case that actually
-    happens, which is somebody refreshing the page.
+    duplicate check is a database one, so two simultaneous requests can both
+    miss it -- but it covers the case that actually happens, a page refresh.
     """
     profile = await _fetch_profile(lichess, body.username)
     player = await upsert_player(session, profile)
@@ -97,9 +93,8 @@ async def latest_report(
 ) -> ReportView:
     """Served entirely from our own tables -- never triggers a fetch.
 
-    A username we have never seen is a 404 rather than an implicit job: creating
-    work from a GET would make the endpoint an unmetered path to the Lichess
-    export.
+    A username we have never seen is a 404 rather than an implicit job: work
+    created from a GET would be an unmetered path to the Lichess export.
     """
     player = await _known_player(session, username)
     report = await service.latest_completed(session, player.id)
@@ -112,12 +107,9 @@ async def latest_report(
 
 
 async def _fetch_profile(lichess: LichessClient, username: str) -> PlayerProfile:
-    """Confirm the account exists before a job is created for it.
-
-    A bad username has to fail here as a 404: enqueued instead, it would surface
-    minutes later as a failed report, and the user would have no idea whether
-    they mistyped or we broke.
-    """
+    # A bad username has to fail here as a 404. Enqueued instead, it would
+    # surface minutes later as a failed report, and the user would not know
+    # whether they mistyped or we broke.
     try:
         return await lichess.get_profile(username)
     except UserNotFoundError as exc:

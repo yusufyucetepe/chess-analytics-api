@@ -1,10 +1,5 @@
 """The ``build_report`` job: everything between a queued row and a finished one.
 
-The pipeline the brief lays out, in order: mark running, ingest the window from
-Lichess, aggregate what landed, write the payload and mark done. Step 5 fills in
-the aggregation; the lifecycle around it is complete now, which is the point of
-step 4 -- a real job that a real worker runs, with a nearly empty payload.
-
 The job takes a report id and nothing else. Every other input is read from the
 row, so a job that is retried, replayed from the queue, or enqueued by hand
 behaves identically.
@@ -28,7 +23,6 @@ from app.worker.failures import DEFAULT_MESSAGE, is_retryable, user_message
 
 logger = logging.getLogger(__name__)
 
-#: The name arq registers the job under, and what the API enqueues by.
 BUILD_REPORT = "build_report"
 
 
@@ -47,8 +41,8 @@ async def build_report(ctx: dict[str, Any], report_id: str) -> dict[str, Any]:
 
         player = await session.get(Player, report.player_id)
         if player is None:
-            # Only reachable if the player was deleted under us; the FK makes it
-            # impossible otherwise. Fail the report rather than crash the job.
+            # Only reachable if the player was deleted under us; the FK rules it
+            # out otherwise.
             await service.mark_failed(session, report, DEFAULT_MESSAGE)
             logger.error("report %s points at missing player %s", report_id, report.player_id)
             return {"report_id": report_id, "status": "failed"}
@@ -69,7 +63,6 @@ async def build_report(ctx: dict[str, Any], report_id: str) -> dict[str, Any]:
 
 
 async def _run(session: AsyncSession, report: Report, player: Player) -> dict[str, Any]:
-    """Ingest the window, then turn what is in Postgres into a payload."""
     # A client per job rather than a shared one: an export holds a connection
     # open for minutes, and that timeout has no business being reused by the
     # short profile calls the API makes.
@@ -119,21 +112,14 @@ async def _run(session: AsyncSession, report: Report, player: Player) -> dict[st
 async def _fail(
     session: AsyncSession, report: Report, player: Player, exc: Exception, attempt: int
 ) -> dict[str, Any]:
-    """Either hand the job back to arq, or close the report as failed.
-
-    ``arq.Retry`` is the only exception arq treats as "run this again" -- every
-    other one marks the job finished and failed. So a retryable fault with
-    attempts left raises that instead of the original, and the row stays in
-    ``running``, which is the truth: the job is queued again. Only the last
-    attempt writes ``failed``, so a caller polling the report never sees it fail
-    and then quietly un-fail.
-
-    The retry budget is ours rather than arq's. Letting arq run out first would
-    have it drop the job without our code ever waking up, leaving the report
-    stuck in ``running`` with nothing to explain why.
-    """
-    # The session may be mid-transaction from the failed ingest; nothing below
-    # can write until it is unwound.
+    # `arq.Retry` is the only exception arq treats as "run this again" -- every
+    # other one marks the job finished and failed. The retry budget is ours
+    # rather than arq's: letting arq run out first would drop the job without
+    # our code waking up, leaving the report stuck in `running` with nothing to
+    # explain why. Only the last attempt writes `failed`, so a poller never sees
+    # it fail and then quietly un-fail.
+    #
+    # The session may be mid-transaction from the failed ingest.
     await session.rollback()
 
     retryable = is_retryable(exc)

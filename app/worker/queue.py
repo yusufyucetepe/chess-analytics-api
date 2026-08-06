@@ -42,8 +42,7 @@ def job_id_for(report_id: uuid.UUID) -> str:
     """One arq job per report row.
 
     arq refuses to enqueue a job id it already holds, so deriving the id from
-    the report makes a double-submit -- a retried POST, a duplicated message --
-    a no-op instead of a second export of the same year.
+    the report makes a double-submit a no-op rather than a second export.
     """
     return f"report:{report_id}"
 

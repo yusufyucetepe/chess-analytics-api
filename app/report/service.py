@@ -1,10 +1,7 @@
 """The ``reports`` table as a job record.
 
-There is no jobs table: a report row *is* the job, so its status column is the
-single place the API and the worker agree on what is happening. Every state
-transition lives here rather than being scattered across the route handlers and
-the arq task, because "who is allowed to set ``completed_at``" is exactly the
-kind of question that gets answered twice, differently.
+There is no jobs table: a report row *is* the job. Every state transition lives
+here rather than being split between the route handlers and the arq task.
 """
 
 import uuid
@@ -17,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.models import Game, Player, Report, ReportStatus
 
-#: Neither finished nor failed: a job someone is already meant to be running.
 ACTIVE_STATUSES = (ReportStatus.PENDING, ReportStatus.RUNNING)
 
 
@@ -40,8 +36,8 @@ async def player_by_username(session: AsyncSession, username: str) -> Player | N
 async def fresh_report(session: AsyncSession, player_id: int) -> Report | None:
     """The player's most recent completed report, if it is still young enough.
 
-    This is the "don't re-scrape Lichess for a page refresh" rule. Step 7 puts a
-    Redis cache in front of it; the database answer stays authoritative.
+    The "don't re-scrape Lichess for a page refresh" rule. Step 7 puts a Redis
+    cache in front of it; the database answer stays authoritative.
     """
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.report_fresh_ttl_s)
     stmt = (
@@ -72,9 +68,8 @@ async def active_report(session: AsyncSession, player_id: int) -> Report | None:
     """A job already queued or running for this player, if there is one.
 
     Bounded by ``ingest_lock_ttl_s``: a worker killed mid-ingest leaves a row
-    stuck in ``running``, and without an age limit that one row would block the
-    player from ever getting a report again. Step 7 replaces this with the real
-    Redis lock, which expires on its own.
+    stuck in ``running``, which without an age limit would block the player from
+    ever getting a report again. Step 7 replaces this with the Redis lock.
     """
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.ingest_lock_ttl_s)
     stmt = (
@@ -108,8 +103,7 @@ async def create_report(
 
 async def mark_running(session: AsyncSession, report: Report) -> None:
     report.status = ReportStatus.RUNNING
-    # Cleared in case this is a retry: the previous attempt's message is no
-    # longer what is happening.
+    # In case this is a retry: the previous attempt's message no longer applies.
     report.error = None
     await session.commit()
 
@@ -144,9 +138,9 @@ async def count_games(
 ) -> tuple[int, int]:
     """Games stored in the window, and how many of them carry engine analysis.
 
-    Counted from the database rather than from what this run happened to fetch:
-    a re-ingest only sees the games it downloaded, but the report covers every
-    game we hold for the window. Aggregated in SQL, not by loading the rows.
+    Counted from the database rather than from what this run fetched: a
+    re-ingest only sees the games it downloaded, but the report covers every
+    game we hold for the window.
     """
     stmt = select(
         func.count(),
