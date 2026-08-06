@@ -76,3 +76,7 @@ filterwarnings = ["error::DeprecationWarning:app.*"]
 [tool.coverage.run]
 source = ["app"]
 omit = ["app/web/*", "alembic/*"]
+# SQLAlchemy's async layer runs queries inside a greenlet, and coverage loses
+# the trace function across the switch: without this, every line of a route or
+# job after its first `await session...` is reported as never executed.
+concurrency = ["greenlet", "thread"]

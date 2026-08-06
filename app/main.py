@@ -8,9 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
+from app.api.v1 import router as v1_router
 from app.core.config import settings
+from app.core.lichess import close_lichess
 from app.core.redis import close_redis
 from app.db.base import engine
+from app.worker.queue import close_pool
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -21,6 +24,8 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
+    await close_lichess()
+    await close_pool()
     await close_redis()
     await engine.dispose()
 
@@ -42,6 +47,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health_router)
+    app.include_router(v1_router)
     return app
 
 

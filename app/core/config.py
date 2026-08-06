@@ -42,6 +42,19 @@ class Settings(BaseSettings):
     #: reporting numbers that would be dominated by self-selection bias.
     quality_min_analysed_games: int = 20
 
+    # Worker
+    #: How many times arq may run one report job. Only network faults get a
+    #: second attempt; a username that doesn't exist fails on the first.
+    worker_max_tries: int = 3
+    #: A year of bullet is tens of thousands of games and the export is rate
+    #: limited, so the default 5 minutes is nowhere near enough.
+    worker_job_timeout_s: int = 30 * 60
+    worker_keep_result_s: int = 3600
+    #: Base wait before a retried report job runs again, multiplied by the
+    #: attempt number. Lichess rate limits are measured in minutes, so coming
+    #: straight back would just spend the next attempt on the same 429.
+    worker_retry_delay_s: int = 30
+
     # Caching / dedupe / limits
     report_fresh_ttl_s: int = 24 * 3600
     report_cache_ttl_s: int = 3600
