@@ -12,9 +12,11 @@ import pytest
 from app.report.player_type_weights import (
     AGGRESSIVE,
     AXES,
-    BLENDED_LABEL,
-    LABELS,
+    BLENDED_NOUN,
+    FLAVOUR_TAGS,
     MIN_GAMES_FOR_A_LABEL,
+    NAME_OVERRIDES,
+    PLAIN_LABELS,
     POSITIONAL,
     TACTICAL,
 )
@@ -44,14 +46,14 @@ ATTACKER = Signals(
     avg_opening_captures=2.2,
 )
 
-#: Ruy Lopez and Caro-Kann, ground out over ninety-odd moves, one game in five
-#: shaken hands on.
+#: Ruy Lopez and English, ground out over ninety-odd moves. Draws at a rate
+#: that is high for online blitz but well short of deliberate.
 SQUEEZER = Signals(
     games=200,
     **tags({"positional": 200, "strategic": 200, "closed": 200}, 200),
     avg_plies=96.0,
-    decisive=160,
-    draws=40,
+    decisive=180,
+    draws=20,
     forced_endings=110,
     flagged=50,
     avg_opening_captures=0.4,
@@ -71,16 +73,18 @@ BRAWLER = Signals(
 )
 
 
-def test_the_gambiteer_is_an_attacker() -> None:
-    assert classify(ATTACKER)["label"] == LABELS[AGGRESSIVE]
+def test_the_gambiteer_is_a_gambit_specialist() -> None:
+    """Aggressive axis plus a gambit repertoire, which has its own name."""
+    assert classify(ATTACKER)["label"] == "Gambit Specialist"
 
 
-def test_the_grinder_is_a_squeezer() -> None:
-    assert classify(SQUEEZER)["label"] == LABELS[POSITIONAL]
+def test_the_grinder_is_a_positional_grinder() -> None:
+    """Closed but not solid: Ruy Lopez and English, not Caro-Kann."""
+    assert classify(SQUEEZER)["label"] == "Positional Grinder"
 
 
-def test_the_najdorf_player_is_a_brawler() -> None:
-    assert classify(BRAWLER)["label"] == LABELS[TACTICAL]
+def test_the_najdorf_player_is_a_chaos_merchant() -> None:
+    assert classify(BRAWLER)["label"] == "Chaos Merchant"
 
 
 @pytest.mark.parametrize(
@@ -162,7 +166,8 @@ def test_two_axes_within_the_margin_blend_instead_of_picking() -> None:
     top, second = sorted(result["scores"].values(), reverse=True)[:2]
 
     assert top - second < 8
-    assert result["label"] == BLENDED_LABEL
+    assert result["label"].endswith(BLENDED_NOUN), "no axis is claimed"
+    assert result["label"] == "Sharp All-Rounder", "the repertoire still names them"
 
 
 def test_a_repertoire_of_only_descriptive_tags_abstains() -> None:
@@ -171,8 +176,8 @@ def test_a_repertoire_of_only_descriptive_tags_abstains() -> None:
         games=100,
         **tags({"offbeat": 100, "flexible": 100, "hypermodern": 100}, 100),
         avg_plies=96.0,
-        decisive=80,
-        draws=20,
+        decisive=90,
+        draws=10,
         forced_endings=55,
         flagged=25,
         avg_opening_captures=0.4,
@@ -203,3 +208,85 @@ def test_normalising_a_vote_with_no_mass_abstains() -> None:
     """A guard, not a path: every caller checks first. But zeroing a pole in the
     weights module must degrade to "no opinion", never to a ZeroDivisionError."""
     assert _normalise(dict.fromkeys(AXES, 0.0)) == pytest.approx(NEUTRAL)
+
+
+def test_the_signature_tag_is_the_most_over_represented_not_the_most_played() -> None:
+    """`positional` sits on 47% of the ECO table, so playing it half the time is
+    average. `gambit` sits on 5%, so the same share is a personality."""
+    both = Signals(
+        games=200,
+        **tags({"positional": 180, "closed": 150, "gambit": 60}, 200),
+        avg_plies=40.0,
+        decisive=190,
+        draws=10,
+        forced_endings=150,
+        avg_opening_captures=2.5,
+    )
+
+    signature = classify(both)["signature"]
+
+    assert signature["tag"] == "gambit"
+    assert signature["lift"] > 5
+
+
+def test_a_tag_below_the_share_floor_cannot_name_anyone() -> None:
+    """Three freak gambits in two hundred games is not a signature."""
+    occasional = Signals(
+        games=200,
+        **tags({"closed": 190, "gambit": 3}, 200),
+        avg_plies=95.0,
+        decisive=160,
+        draws=40,
+        forced_endings=110,
+        avg_opening_captures=0.4,
+    )
+
+    assert classify(occasional)["signature"]["tag"] == "closed"
+
+
+def test_a_repertoire_with_nothing_distinctive_drops_the_adjective() -> None:
+    """An entirely average repertoire gets the bare axis label, not a made-up one."""
+    average = Signals(
+        games=200,
+        **tags({"positional": 200}, 200),
+        avg_plies=96.0,
+        decisive=180,
+        draws=20,
+        forced_endings=110,
+        avg_opening_captures=0.4,
+    )
+
+    result = classify(average)
+
+    assert result["signature"] is None
+    assert result["label"] == PLAIN_LABELS[POSITIONAL] == "The Strategist"
+
+
+def test_axis_nouns_never_repeat_the_adjective() -> None:
+    """'Tactical Tactician' is not a personality, so those tags cannot be flavours."""
+    assert set(FLAVOUR_TAGS) & {"positional", "strategic", "tactical", "attacking"} == set()
+
+
+def test_every_override_names_a_real_tag_and_axis() -> None:
+    """A typo here would silently never fire."""
+    for tag, axis in NAME_OVERRIDES:
+        assert tag in FLAVOUR_TAGS
+        assert axis in AXES or axis is None
+
+
+def test_a_caro_kann_style_repertoire_reads_solid_not_closed() -> None:
+    """B10-B19 carries solid, closed and positional; solid is rarer, so it wins."""
+    caro = Signals(
+        games=200,
+        **tags({"solid": 200, "closed": 200, "positional": 200}, 200),
+        avg_plies=98.0,
+        decisive=170,
+        draws=30,
+        forced_endings=115,
+        avg_opening_captures=0.4,
+    )
+
+    result = classify(caro)
+
+    assert result["signature"]["tag"] == "solid"
+    assert result["label"] == "The Immovable Object"

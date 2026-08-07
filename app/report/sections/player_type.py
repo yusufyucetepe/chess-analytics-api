@@ -20,16 +20,22 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Game, OpeningMeta, Result
+from app.db.seed import tag_baseline
 from app.report.player_type_weights import (
     AGGRESSIVE,
     AXES,
+    AXIS_NOUNS,
     BLEND_MARGIN,
-    BLENDED_LABEL,
+    BLENDED_NOUN,
     BUSY_OPENING_CAPTURES,
     DISCLAIMER,
-    LABELS,
+    FLAVOUR_MIN_LIFT,
+    FLAVOUR_MIN_SHARE,
+    FLAVOUR_TAGS,
     LONG_GAME_PLIES,
     MIN_GAMES_FOR_A_LABEL,
+    NAME_OVERRIDES,
+    PLAIN_LABELS,
     POSITIONAL,
     SHORT_GAME_PLIES,
     SIGNAL_WEIGHTS,
@@ -100,12 +106,59 @@ def classify(signals: Signals) -> dict[str, Any]:
     ranked = sorted(scores.items(), key=lambda item: -item[1])
     confident = signals.games >= MIN_GAMES_FOR_A_LABEL
 
-    label = None
-    if confident:
-        top, runner_up = ranked[0], ranked[1]
-        label = BLENDED_LABEL if top[1] - runner_up[1] < BLEND_MARGIN else LABELS[top[0]]
+    # `None` when the top two axes are within the margin: the player leans
+    # somewhere, but not far enough for the noun to claim otherwise.
+    decided = ranked[0][0] if ranked[0][1] - ranked[1][1] >= BLEND_MARGIN else None
+    flavour = _flavour(signals)
 
-    return _verdict(signals, scores=scores, leaning=ranked[0][0], label=label, confident=confident)
+    return _verdict(
+        signals,
+        scores=scores,
+        leaning=ranked[0][0],
+        label=_name(decided, flavour) if confident else None,
+        confident=confident,
+        flavour=flavour,
+    )
+
+
+def _name(axis: str | None, flavour: str | None) -> str:
+    """``<adjective> <noun>``, unless the pair has earned its own name.
+
+    The noun is how the player wins, the adjective is what they choose to play.
+    A repertoire with nothing distinctive in it drops the adjective rather than
+    inventing one.
+    """
+    if flavour is None:
+        return PLAIN_LABELS[axis]
+    if override := NAME_OVERRIDES.get((flavour, axis)):
+        return override
+    noun = AXIS_NOUNS[axis] if axis else BLENDED_NOUN
+    return f"{FLAVOUR_TAGS[flavour]} {noun}"
+
+
+def _flavour(signals: Signals) -> str | None:
+    """The tag the player plays most out of proportion to how common it is.
+
+    Not the most frequent tag: that is whichever one sits on the most ECO codes,
+    which describes the table rather than the player. A tag has to clear both a
+    share floor and a lift floor, so a single freak line cannot name someone and
+    neither can an unremarkable one.
+    """
+    if not signals.tagged_games:
+        return None
+    baseline = tag_baseline()
+
+    best: tuple[float, str] | None = None
+    for tag in FLAVOUR_TAGS:
+        base = baseline.get(tag)
+        share = signals.tag_counts.get(tag, 0) / signals.tagged_games
+        if not base or share < FLAVOUR_MIN_SHARE:
+            continue
+        lift = share / base
+        # Ties break on the tag name, so the label never depends on dict order.
+        if lift >= FLAVOUR_MIN_LIFT and (best is None or (-lift, tag) < (-best[0], best[1])):
+            best = (lift, tag)
+    return best[1] if best else None
 
 
 def _verdict(
@@ -115,12 +168,27 @@ def _verdict(
     leaning: str | None,
     label: str | None,
     confident: bool,
+    flavour: str | None = None,
 ) -> dict[str, Any]:
+    baseline = tag_baseline().get(flavour or "", 0.0)
+    share = signals.tag_counts.get(flavour or "", 0) / (signals.tagged_games or 1)
     return {
         "label": label,
         "confident": confident,
         "scores": scores,
         "leaning": leaning,
+        # What earned the adjective, so the frontend can say "you play offbeat
+        # openings ten times more often than the ECO table would suggest".
+        "signature": (
+            None
+            if flavour is None
+            else {
+                "tag": flavour,
+                "adjective": FLAVOUR_TAGS[flavour],
+                "share": round(share, 4),
+                "lift": round(share / baseline, 1) if baseline else None,
+            }
+        ),
         "games": signals.games,
         "min_games": MIN_GAMES_FOR_A_LABEL,
         "disclaimer": DISCLAIMER,

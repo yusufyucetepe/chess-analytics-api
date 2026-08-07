@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import OpeningMeta, Player, Result
-from app.report.player_type_weights import AGGRESSIVE, LABELS, POSITIONAL
+from app.report.player_type_weights import AGGRESSIVE, POSITIONAL
 from app.report.sections import build_sections, player_type
 from tests.integration.games import SINCE, UNTIL, seed
 
@@ -132,7 +132,9 @@ async def test_a_seeded_gambiteer_comes_out_as_an_attacker(
 
     verdict = player_type.classify(await signals(session, player))
 
-    assert verdict["label"] == LABELS[AGGRESSIVE]
+    assert verdict["leaning"] == AGGRESSIVE
+    assert verdict["label"] == "Gambit Specialist"
+    assert verdict["signature"]["tag"] == "gambit"
     assert verdict["confident"] is True
 
 
@@ -151,7 +153,7 @@ async def test_a_seeded_grinder_comes_out_as_a_squeezer(
                 "result": Result.WIN,
             }
         ]
-        * 45
+        * 54
         + [
             {
                 "eco": "C88",
@@ -161,12 +163,13 @@ async def test_a_seeded_grinder_comes_out_as_a_squeezer(
                 "result": Result.DRAW,
             }
         ]
-        * 15,
+        * 6,
     )
 
     verdict = player_type.classify(await signals(session, player))
 
-    assert verdict["label"] == LABELS[POSITIONAL]
+    assert verdict["leaning"] == POSITIONAL
+    assert verdict["label"] == "Positional Grinder", "Ruy Lopez is closed, not solid"
 
 
 async def test_player_type_joins_the_other_sections(session: AsyncSession, player: Player) -> None:

@@ -61,18 +61,64 @@ BUSY_OPENING_CAPTURES: Final = 3.0
 #: is not a playing style.
 MIN_GAMES_FOR_A_LABEL: Final = 30
 
-#: Awarded to the axis with the highest score. The runner-up only makes it into
-#: the blurb when it is within `BLEND_MARGIN` points.
-LABELS: Final[dict[str, str]] = {
-    POSITIONAL: "The Squeezer",
-    AGGRESSIVE: "The Attacker",
-    TACTICAL: "The Brawler",
+#: The noun in the label, from the leading axis: *how* the player wins.
+AXIS_NOUNS: Final[dict[str, str]] = {
+    POSITIONAL: "Strategist",
+    AGGRESSIVE: "Attacker",
+    TACTICAL: "Tactician",
 }
 
-BLENDED_LABEL: Final = "The All-Rounder"
+#: Used when the top two axes are too close to separate.
+BLENDED_NOUN: Final = "All-Rounder"
+
 #: Percentage points. Inside this, the top two axes are close enough that
 #: picking one of them would be noise dressed up as a verdict.
 BLEND_MARGIN: Final = 8.0
+
+#: The adjective in the label, from the player's most distinctive tag: *what*
+#: they choose to play. Deliberately excludes `positional`, `strategic`,
+#: `tactical` and `attacking` -- those already name an axis, and "Tactical
+#: Tactician" is not a personality.
+FLAVOUR_TAGS: Final[dict[str, str]] = {
+    "gambit": "Gambit",
+    "offbeat": "Offbeat",
+    "hypermodern": "Hypermodern",
+    "open": "Open",
+    "unbalanced": "Wild",
+    "solid": "Solid",
+    "closed": "Closed",
+    "sharp": "Sharp",
+    "dynamic": "Dynamic",
+    "flexible": "Adaptable",
+}
+
+#: A tag has to be this much of the repertoire before it can name anyone.
+FLAVOUR_MIN_SHARE: Final = 0.12
+
+#: ...and this much more common in their games than across the ECO table.
+#: Without it the answer is always whichever tag sits on the most ECO codes,
+#: which says nothing about the player -- `positional` covers 47% of the table,
+#: so playing it half the time is average, not characteristic.
+FLAVOUR_MIN_LIFT: Final = 1.5
+
+#: Combinations that deserve a better name than "<adjective> <noun>". Keyed by
+#: (tag, axis), where a ``None`` axis means the two top axes tied.
+NAME_OVERRIDES: Final[dict[tuple[str, str | None], str]] = {
+    ("gambit", AGGRESSIVE): "Gambit Specialist",
+    ("gambit", TACTICAL): "Gambit Gambler",
+    ("unbalanced", TACTICAL): "Chaos Merchant",
+    ("solid", POSITIONAL): "The Immovable Object",
+    ("closed", POSITIONAL): "Positional Grinder",
+    ("offbeat", None): "Offbeat Improviser",
+}
+
+#: When no tag is distinctive enough, the axis stands alone.
+PLAIN_LABELS: Final[dict[str | None, str]] = {
+    POSITIONAL: "The Strategist",
+    AGGRESSIVE: "The Attacker",
+    TACTICAL: "The Tactician",
+    None: "The All-Rounder",
+}
 
 DISCLAIMER: Final = (
     "A playful heuristic from your openings and how your games ended -- not a measurement."

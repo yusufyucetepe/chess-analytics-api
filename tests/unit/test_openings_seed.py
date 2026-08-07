@@ -1,13 +1,17 @@
 """The ECO range file and its expansion into openings_meta rows."""
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from app.db.seed import eco_codes, load_openings_meta
+from app.db.seed import STYLE_TAGS, eco_codes, load_openings_meta
 from app.report.player_type_weights import TAG_AXES
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 ALL_CODES = {f"{letter}{number:02d}" for letter in "ABCDE" for number in range(100)}
 
@@ -94,3 +98,36 @@ def test_rows_come_back_sorted(tmp_path: Path) -> None:
     )
 
     assert [row["eco"] for row in load_openings_meta(path)] == ["A00", "A01", "E00", "E01"]
+
+
+def test_the_classifier_has_an_opinion_about_every_tag_in_the_vocabulary() -> None:
+    """`seed.py` owns the vocabulary so a migration can import it without dragging
+    in the report package. This is the check that keeps the two in step."""
+    assert set(TAG_AXES) == STYLE_TAGS
+
+
+def test_the_data_file_uses_the_whole_vocabulary() -> None:
+    """A tag nothing is tagged with is dead weight in the weights module."""
+    used = {tag for row in load_openings_meta() for tag in row["style_tags"]}
+
+    assert used == STYLE_TAGS
+
+
+def test_the_seed_module_imports_on_its_own() -> None:
+    """A migration imports `app.db.seed` directly; it must not need `app.report`.
+
+    Regression test, run in a clean interpreter because import cycles only show
+    up on a fresh module table. The two briefly imported each other, which made
+    `alembic upgrade head` fail on any path that had not already loaded
+    `app.report` by chance -- and the whole test suite hid it, because pytest
+    always imports `app.report` first.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", "import app.db.seed; print(len(app.db.seed.load_openings_meta()))"],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "500"
