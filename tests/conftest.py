@@ -93,11 +93,14 @@ async def engine() -> AsyncIterator:
 
 @pytest.fixture
 async def session(engine) -> AsyncIterator[AsyncSession]:
-    """A clean database per test. Truncate is cheaper than drop/create."""
+    """A clean database per test. Truncate is cheaper than drop/create.
+
+    ``openings_meta`` is deliberately spared: it is static reference data seeded
+    by a migration, not something a test can dirty, and truncating it would make
+    every test start with a classifier that knows no openings.
+    """
     async with engine.begin() as conn:
-        await conn.execute(
-            text("TRUNCATE players, games, reports, openings_meta RESTART IDENTITY CASCADE")
-        )
+        await conn.execute(text("TRUNCATE players, games, reports RESTART IDENTITY CASCADE"))
     maker = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     async with maker() as s:
         yield s

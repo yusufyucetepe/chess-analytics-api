@@ -10,7 +10,14 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.report.sections import headline, openings, progression, quality, time_behaviour
+from app.report.sections import (
+    headline,
+    openings,
+    player_type,
+    progression,
+    quality,
+    time_behaviour,
+)
 
 
 async def build_sections(
@@ -21,7 +28,7 @@ async def build_sections(
     until: datetime,
     games_analysed: int,
 ) -> dict[str, Any]:
-    """Compute every section a v1 report has. ``player_type`` arrives in step 6."""
+    """Compute every section a v1 report has."""
     return {
         "headline": await headline.build(session, player_id, since=since, until=until),
         "openings": await openings.build(session, player_id, since=since, until=until),
@@ -30,7 +37,16 @@ async def build_sections(
         ),
         "time_behaviour": await time_behaviour.build(session, player_id, since=since, until=until),
         "progression": await progression.build(session, player_id, since=since, until=until),
+        "player_type": await player_type.build(session, player_id, since=since, until=until),
     }
 
 
-__all__ = ["build_sections", "headline", "openings", "progression", "quality", "time_behaviour"]
+__all__ = [
+    "build_sections",
+    "headline",
+    "openings",
+    "player_type",
+    "progression",
+    "quality",
+    "time_behaviour",
+]

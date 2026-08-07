@@ -202,7 +202,8 @@ async def test_the_finished_payload_has_the_shape_the_frontend_will_read(
     assert payload["sections"]["headline"]["games"] == FIXTURE_GAMES
     assert payload["sections"]["quality"]["available"] is False, "five analysed games"
     assert payload["sections"]["openings"]["tree"]["white"], "built from the real export"
-    assert payload["sections"]["player_type"] is None, "step 6"
+    assert sum(payload["sections"]["player_type"]["scores"].values()) == 100
+    assert payload["sections"]["player_type"]["confident"] is False, "six games"
 
 
 @respx.mock

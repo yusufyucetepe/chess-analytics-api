@@ -1,72 +1,22 @@
-"""The five report sections, against a real Postgres.
+"""The computed report sections, against a real Postgres.
 
 Almost all of this logic is SQL -- window functions, array slices, FILTER
-aggregates -- so mocking the database would test nothing at all. Games are
-written directly rather than ingested: these tests are about what the queries
-say, and going through the export would only make the inputs harder to read.
+aggregates -- so mocking the database would test nothing at all. The
+player-type section has its own module; this one covers the other five.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.db.models import Color, Game, Player, Result
+from app.db.models import Color, Player, Result
+from app.report.builder import SECTIONS
 from app.report.sections import build_sections, headline, openings, progression, quality
 from app.report.sections import time_behaviour as time_section
-
-#: Deliberately fixed rather than relative to now: every assertion below is
-#: about buckets and orderings, and a moving window makes those flaky.
-BASE = datetime(2026, 3, 2, 12, 0, tzinfo=UTC)
-SINCE = BASE - timedelta(days=180)
-UNTIL = BASE + timedelta(days=180)
-
-DEFAULTS: dict[str, Any] = {
-    "perf": "blitz",
-    "rated": True,
-    "color": Color.WHITE,
-    "result": Result.WIN,
-    "status": "resign",
-    "moves_count": 60,
-    "duration_s": 300,
-    "opening_line": [],
-    "analysed": False,
-}
-
-
-@pytest.fixture
-async def player(session: AsyncSession) -> Player:
-    row = Player(username_lower="tester", display_name="Tester")
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
-
-
-async def seed(session: AsyncSession, player: Player, specs: list[dict[str, Any]]) -> None:
-    """Write games one minute apart, in list order, so time follows the source."""
-    for index, spec in enumerate(specs):
-        session.add(
-            Game(
-                **{
-                    **DEFAULTS,
-                    "game_id": f"game{index:04d}",
-                    "player_id": player.id,
-                    "played_at": BASE + timedelta(minutes=index),
-                    **spec,
-                }
-            )
-        )
-    await session.commit()
-
-
-def results(*letters: str) -> list[dict[str, Any]]:
-    """'WWLD' as four games -- the shorthand the streak and tilt tests read in."""
-    lookup = {"W": Result.WIN, "L": Result.LOSS, "D": Result.DRAW}
-    return [{"result": lookup[letter]} for letter in letters]
+from tests.integration.games import BASE, SINCE, UNTIL, results, seed
 
 
 async def build_headline(session: AsyncSession, player: Player) -> dict[str, Any]:
@@ -469,13 +419,7 @@ async def test_every_section_is_built_and_is_json_native(
         games_analysed=settings.quality_min_analysed_games,
     )
 
-    assert set(sections) == {
-        "headline",
-        "openings",
-        "quality",
-        "time_behaviour",
-        "progression",
-    }
+    assert set(sections) == set(SECTIONS), "every declared section is computed"
     assert all(value is not None for value in sections.values())
     assert json.loads(json.dumps(sections))["quality"]["available"] is True
 
