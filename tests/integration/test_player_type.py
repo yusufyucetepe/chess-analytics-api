@@ -99,14 +99,16 @@ async def test_endings_are_split_between_the_board_and_the_clock(
     assert found.decisive == 5
 
 
-async def test_signals_from_an_empty_window_classify_without_crashing(
+async def test_an_empty_window_classifies_to_nothing_rather_than_crashing(
     session: AsyncSession, player: Player
 ) -> None:
     found = await signals(session, player)
+    verdict = player_type.classify(found)
 
     assert found.games == 0
     assert found.avg_plies is None
-    assert sum(player_type.classify(found)["scores"].values()) == 100
+    assert verdict["scores"] == {"positional": None, "aggressive": None, "tactical": None}
+    assert verdict["label"] is None
 
 
 async def test_a_seeded_gambiteer_comes_out_as_an_attacker(

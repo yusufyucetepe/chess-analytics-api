@@ -11,6 +11,7 @@ with nothing to say can abstain by voting down the middle instead of dragging
 the answer somewhere it did not intend.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -82,12 +83,20 @@ async def build(
 def classify(signals: Signals) -> dict[str, Any]:
     """Turn signals into three scores summing to 100, plus a label.
 
-    The label is withheld below ``MIN_GAMES_FOR_A_LABEL``: the scores are still
-    computed and shown, because a caveated number is more use than a blank, but
-    calling someone an attacker on the strength of ten games would not be.
+    Two things are withheld rather than guessed. Below ``MIN_GAMES_FOR_A_LABEL``
+    the scores stand but the label does not -- a caveated number is more use
+    than a blank, while calling someone an attacker on ten games is not. And
+    when no signal has anything to say at all, the scores are ``None`` rather
+    than an even split: a third each is a verdict of "perfectly balanced", which
+    is a different statement from "we cannot tell".
     """
-    votes = _votes(signals)
-    scores = _percentages(_weighted_mean(votes))
+    mean = _weighted_mean(_votes(signals))
+    if mean is None:
+        return _verdict(
+            signals, scores=dict.fromkeys(AXES), leaning=None, label=None, confident=False
+        )
+
+    scores = _percentages(mean)
     ranked = sorted(scores.items(), key=lambda item: -item[1])
     confident = signals.games >= MIN_GAMES_FOR_A_LABEL
 
@@ -96,11 +105,22 @@ def classify(signals: Signals) -> dict[str, Any]:
         top, runner_up = ranked[0], ranked[1]
         label = BLENDED_LABEL if top[1] - runner_up[1] < BLEND_MARGIN else LABELS[top[0]]
 
+    return _verdict(signals, scores=scores, leaning=ranked[0][0], label=label, confident=confident)
+
+
+def _verdict(
+    signals: Signals,
+    *,
+    scores: Mapping[str, int | None],
+    leaning: str | None,
+    label: str | None,
+    confident: bool,
+) -> dict[str, Any]:
     return {
         "label": label,
         "confident": confident,
         "scores": scores,
-        "leaning": ranked[0][0],
+        "leaning": leaning,
         "games": signals.games,
         "min_games": MIN_GAMES_FOR_A_LABEL,
         "disclaimer": DISCLAIMER,
@@ -217,10 +237,15 @@ def _between(value: float, low: float, high: float) -> float:
     return min(max((value - low) / (high - low), 0.0), 1.0) if high > low else 0.0
 
 
-def _weighted_mean(votes: list[tuple[float, Vote]]) -> Vote:
+def _weighted_mean(votes: list[tuple[float, Vote]]) -> Vote | None:
+    """``None`` when there is nothing to average.
+
+    Covers both ways that happens: no signal had any data, and every signal was
+    weighted to zero in the config module. Neither is a balanced player.
+    """
     total = sum(weight for weight, _ in votes)
     if not total:
-        return dict(NEUTRAL)
+        return None
     return {
         axis: sum(weight * vote.get(axis, 0.0) for weight, vote in votes) / total for axis in AXES
     }

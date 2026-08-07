@@ -18,7 +18,13 @@ from app.report.player_type_weights import (
     POSITIONAL,
     TACTICAL,
 )
-from app.report.sections.player_type import NEUTRAL, Signals, _normalise, classify
+from app.report.sections.player_type import (
+    NEUTRAL,
+    Signals,
+    _normalise,
+    _weighted_mean,
+    classify,
+)
 
 
 def tags(counts: dict[str, int], games: int) -> dict[str, Any]:
@@ -90,8 +96,8 @@ def test_each_archetype_leads_on_its_own_axis(player: Signals, axis: str) -> Non
 
 @pytest.mark.parametrize(
     "player",
-    [ATTACKER, SQUEEZER, BRAWLER, Signals(), Signals(games=1)],
-    ids=["attacker", "squeezer", "brawler", "nothing", "one-game"],
+    [ATTACKER, SQUEEZER, BRAWLER, Signals(games=1)],
+    ids=["attacker", "squeezer", "brawler", "one-game"],
 )
 def test_the_scores_always_sum_to_one_hundred(player: Signals) -> None:
     """The frontend draws these as a split bar; 99 or 101 would show."""
@@ -102,12 +108,23 @@ def test_the_scores_always_sum_to_one_hundred(player: Signals) -> None:
     assert all(value >= 0 for value in scores.values())
 
 
-def test_a_player_with_no_games_gets_no_label_and_no_crash() -> None:
+def test_a_player_with_no_games_scores_null_rather_than_an_even_split() -> None:
+    """A third each would read as "perfectly balanced", which is a claim.
+
+    Having nothing to read is not the same statement, so it gets no numbers.
+    """
     result = classify(Signals())
 
+    assert result["scores"] == dict.fromkeys(AXES)
+    assert result["leaning"] is None
     assert result["label"] is None
     assert result["confident"] is False
-    assert sum(result["scores"].values()) == 100
+
+
+def test_zeroing_every_weight_also_yields_no_opinion() -> None:
+    """The other way to end up with nothing: a config module tuned to silence."""
+    assert _weighted_mean([]) is None
+    assert _weighted_mean([(0.0, dict(NEUTRAL))]) is None
 
 
 def test_the_label_is_withheld_until_there_are_enough_games() -> None:
