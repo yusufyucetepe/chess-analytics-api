@@ -6,6 +6,7 @@ only to confirm the account exists. Everything slow belongs to the worker.
 
 import logging
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,7 @@ from app.lichess.client import LichessClient
 from app.lichess.errors import LichessError, UserNotFoundError
 from app.lichess.schemas import PlayerProfile
 from app.report import service
+from app.report.sections import openings
 from app.worker.failures import user_message
 
 logger = logging.getLogger(__name__)
@@ -104,6 +106,28 @@ async def latest_report(
             "No completed report for that player yet. POST /api/v1/reports to build one.",
         )
     return ReportView.of(report, player.display_name)
+
+
+@router.get(
+    "/players/{username}/openings",
+    summary="The player's repertoire, computed live from the games we hold",
+)
+async def player_openings(
+    username: Username, session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    """The openings section on its own, for a caller that wants only the tree.
+
+    Recomputed rather than lifted out of the last report's payload: the games
+    table is the source of truth, and it may hold a window the newest completed
+    report does not cover.
+    """
+    player = await _known_player(session, username)
+    since, until = service.report_window()
+    return {
+        "username": player.display_name,
+        "period": {"start": since.isoformat(), "end": until.isoformat()},
+        "openings": await openings.build(session, player.id, since=since, until=until),
+    }
 
 
 async def _fetch_profile(lichess: LichessClient, username: str) -> PlayerProfile:

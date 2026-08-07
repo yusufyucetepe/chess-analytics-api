@@ -19,6 +19,7 @@ from app.ingest import ingest_player
 from app.lichess.client import LichessClient
 from app.report import service
 from app.report.builder import build_payload
+from app.report.sections import build_sections
 from app.worker.failures import DEFAULT_MESSAGE, is_retryable, user_message
 
 logger = logging.getLogger(__name__)
@@ -80,12 +81,20 @@ async def _run(session: AsyncSession, report: Report, player: Player) -> dict[st
     games_total, games_analysed = await service.count_games(
         session, player.id, since=report.period_start, until=report.period_end
     )
+    sections = await build_sections(
+        session,
+        player.id,
+        since=report.period_start,
+        until=report.period_end,
+        games_analysed=games_analysed,
+    )
     payload = build_payload(
         player=player,
         period_start=report.period_start,
         period_end=report.period_end,
         games_total=games_total,
         games_analysed=games_analysed,
+        sections=sections,
     )
     await service.mark_done(
         session,

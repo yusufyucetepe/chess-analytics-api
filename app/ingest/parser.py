@@ -81,6 +81,7 @@ def parse_game(
         "opening_name": opening.get("name"),
         "opening_ply": opening.get("ply"),
         "moves_count": len(moves),
+        "duration_s": _duration_s(created_at, raw.get("lastMoveAt")),
         "clock_initial": clock.get("initial"),
         "clock_increment": clock.get("increment"),
         # Only the games the player asked Lichess to analyse carry these, which
@@ -129,6 +130,18 @@ def _result_for(winner: str | None, color: Color) -> Result:
     if winner is None:
         return Result.DRAW
     return Result.WIN if winner == color.value else Result.LOSS
+
+
+def _duration_s(created_at: int, last_move_at: Any) -> int | None:
+    """How long the game ran, from the two epoch-millisecond stamps.
+
+    The only real measure of time spent playing: clock settings say what the
+    players *could* have used, not what they did. Correspondence games run for
+    days, so the report caps each game's contribution rather than this doing it.
+    """
+    if not isinstance(last_move_at, int):
+        return None
+    return max(0, (last_move_at - created_at) // 1000)
 
 
 def _decimal(value: Any) -> Decimal | None:

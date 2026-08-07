@@ -95,9 +95,25 @@ def test_the_envelope_identifies_the_player_and_the_window(player: Player) -> No
     }
 
 
-def test_the_sections_are_declared_but_not_yet_built(player: Player) -> None:
-    """Step 5 fills these in one at a time; the shape does not change with them."""
+def test_a_section_the_builder_was_not_given_is_null(player: Player) -> None:
+    """``player_type`` arrives in step 6; until then it is present and empty."""
     assert payload(player)["sections"] == dict.fromkeys(SECTIONS)
+
+
+def test_computed_sections_are_placed_by_name(player: Player) -> None:
+    built = build_payload(
+        player=player,
+        period_start=PERIOD_START,
+        period_end=PERIOD_END,
+        games_total=10,
+        games_analysed=0,
+        sections={"headline": {"games": 10}, "not_a_section": {"games": 99}},
+    )
+
+    assert built["sections"]["headline"] == {"games": 10}
+    assert built["sections"]["openings"] is None
+    # Keyed off SECTIONS, so a consumer can rely on the set of names it gets.
+    assert set(built["sections"]) == set(SECTIONS)
 
 
 def test_the_payload_is_json_native(player: Player) -> None:

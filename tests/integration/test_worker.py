@@ -198,7 +198,11 @@ async def test_the_finished_payload_has_the_shape_the_frontend_will_read(
     # Six analysed games is far under the threshold, and the report says so
     # rather than quoting an average built on them.
     assert payload["coverage"]["quality_reliable"] is False
-    assert set(payload["sections"]) == set(SECTIONS), "step 5 fills these in"
+    assert set(payload["sections"]) == set(SECTIONS)
+    assert payload["sections"]["headline"]["games"] == FIXTURE_GAMES
+    assert payload["sections"]["quality"]["available"] is False, "five analysed games"
+    assert payload["sections"]["openings"]["tree"]["white"], "built from the real export"
+    assert payload["sections"]["player_type"] is None, "step 6"
 
 
 @respx.mock

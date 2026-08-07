@@ -274,3 +274,20 @@ def test_the_player_is_matched_case_insensitively(games: dict[str, dict[str, Any
     del raw["players"]["white"]["user"]["id"]
 
     assert row(raw)["color"] is Color.WHITE
+
+
+def test_the_duration_comes_from_the_two_timestamps(games: dict[str, dict[str, Any]]) -> None:
+    """Clock settings say what the players could have used, not what they did."""
+    raw = copy.deepcopy(games[WHITE_WIN])
+    raw["createdAt"] = 1_537_451_981_883
+    raw["lastMoveAt"] = 1_537_452_065_262
+
+    assert row(raw)["duration_s"] == 83
+
+
+def test_a_game_with_no_last_move_has_no_duration(games: dict[str, dict[str, Any]]) -> None:
+    """It contributes nothing to hours played rather than a guess."""
+    raw = copy.deepcopy(games[WHITE_WIN])
+    del raw["lastMoveAt"]
+
+    assert row(raw)["duration_s"] is None

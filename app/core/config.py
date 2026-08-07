@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     #: reporting numbers that would be dominated by self-selection bias.
     quality_min_analysed_games: int = 20
 
+    # Report sections
+    report_top_openings: int = 5
+    #: How deep the repertoire tree goes. Bounded by `opening_line_plies`, since
+    #: that is all ingest kept.
+    report_tree_plies: int = 8
+    #: Lines played once are noise in a tree and most of its JSON size.
+    report_tree_min_games: int = 2
+    #: An opening needs this many games before its score is worth ranking on.
+    report_opening_min_games: int = 5
+    #: A gap longer than this ends a playing session.
+    report_session_gap_s: int = 30 * 60
+    #: Ceiling on one game's contribution to hours played. Correspondence games
+    #: run for days of wall-clock time the player did not spend at the board.
+    report_max_game_s: int = 4 * 3600
+
     # Worker
     #: How many times arq may run one report job. Only network faults get a
     #: second attempt; a username that doesn't exist fails on the first.

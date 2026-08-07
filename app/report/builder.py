@@ -1,9 +1,10 @@
 """Assembling the report payload.
 
-Step 4 builds the envelope only; the sections land in step 5, one at a time,
-each replacing a ``None`` in ``SECTIONS``. Coverage is computed here, next to
-the counts it comes from, so that every section written later sits beside the
-caveat instead of quoting an accuracy figure on its own.
+The envelope only. Sections are computed against the database in
+``app.report.sections`` and handed in, which keeps this module pure and lets the
+payload shape be tested without a session. Coverage is computed here, next to
+the counts it comes from, so no section can quote an accuracy figure without the
+caveat travelling alongside it.
 """
 
 from datetime import UTC, datetime
@@ -22,6 +23,11 @@ SECTIONS = (
 )
 
 
+def quality_reliable(games_analysed: int) -> bool:
+    """Whether there is enough analysis to report quality numbers at all."""
+    return games_analysed >= settings.quality_min_analysed_games
+
+
 def coverage(games_total: int, games_analysed: int) -> dict[str, Any]:
     """How much of the year has engine analysis behind it.
 
@@ -31,7 +37,7 @@ def coverage(games_total: int, games_analysed: int) -> dict[str, Any]:
     ``quality_min_analysed_games`` it says the numbers are not worth reading
     rather than printing an average that means nothing.
     """
-    reliable = games_analysed >= settings.quality_min_analysed_games
+    reliable = quality_reliable(games_analysed)
     return {
         "games_total": games_total,
         "games_analysed": games_analysed,
@@ -56,6 +62,7 @@ def build_payload(
     period_end: datetime,
     games_total: int,
     games_analysed: int,
+    sections: dict[str, Any] | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """The report as stored in ``reports.payload`` and served over HTTP.
@@ -63,6 +70,7 @@ def build_payload(
     Everything is JSON-native: the column is JSONB, so datetimes are ISO strings
     rather than objects the serialiser would have to be taught about.
     """
+    computed = sections or {}
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "generated_at": (generated_at or datetime.now(UTC)).isoformat(),
@@ -78,5 +86,7 @@ def build_payload(
             "days": settings.report_window_days,
         },
         "coverage": coverage(games_total, games_analysed),
-        "sections": dict.fromkeys(SECTIONS),
+        # Keyed off SECTIONS rather than merged: a consumer can rely on every
+        # section name being present, and on nothing else appearing.
+        "sections": {name: computed.get(name) for name in SECTIONS},
     }

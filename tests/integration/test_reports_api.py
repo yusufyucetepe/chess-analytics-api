@@ -5,6 +5,7 @@ created and which status code comes back, and a real Redis would only make the
 same assertions slower. ``test_worker.py`` covers the job actually running.
 """
 
+import datetime
 import json
 import uuid
 from typing import Any
@@ -17,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_enqueue
-from app.db.models import Player, Report, ReportStatus
+from app.db.models import Color, Game, Player, Report, ReportStatus, Result
 from app.main import create_app
 from app.report import service
 from tests.conftest import load_fixture
@@ -287,3 +288,48 @@ async def test_reading_a_player_we_have_never_seen_starts_no_work(
     assert resp.status_code == 404
     assert not route.called
     assert queue.enqueued == []
+
+
+@respx.mock
+async def test_the_openings_endpoint_computes_from_the_games_we_hold(
+    api: AsyncClient, session: AsyncSession
+) -> None:
+    """Not lifted out of a report payload: it works before one has ever been built."""
+    mock_profile()
+    await post(api)
+    player = await service.player_by_username(session, USERNAME)
+    assert player is not None
+    since, _ = service.report_window()
+    session.add_all(
+        Game(
+            game_id=f"opening{index}",
+            player_id=player.id,
+            played_at=since + datetime.timedelta(days=1),
+            perf="blitz",
+            color=Color.WHITE,
+            result=Result.WIN,
+            status="resign",
+            eco="B22",
+            opening_name="Sicilian Defense: Alapin Variation",
+            opening_line=["e4", "c5", "c3"],
+        )
+        for index in range(3)
+    )
+    await session.commit()
+
+    resp = await api.get(f"/api/v1/players/{USERNAME}/openings")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["username"] == USERNAME
+    assert body["openings"]["by_color"]["white"]["top"][0]["eco"] == "B22"
+    assert [node["san"] for node in body["openings"]["tree"]["white"]] == ["e4"]
+
+
+@respx.mock
+async def test_the_openings_endpoint_404s_for_a_player_we_have_never_seen(
+    api: AsyncClient,
+) -> None:
+    resp = await api.get("/api/v1/players/someoneelse/openings")
+
+    assert resp.status_code == 404

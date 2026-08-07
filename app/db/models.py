@@ -125,6 +125,9 @@ class Game(Base):
 
     #: Total plies in the game (half-moves), not full moves.
     moves_count: Mapped[int] = mapped_column(Integer, default=0)
+    #: Wall-clock seconds from first move to last. Nullable because rows written
+    #: before this column existed have none; a re-ingest fills them in.
+    duration_s: Mapped[int | None] = mapped_column(Integer)
     clock_initial: Mapped[int | None] = mapped_column(Integer)
     clock_increment: Mapped[int | None] = mapped_column(Integer)
 
