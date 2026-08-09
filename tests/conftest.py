@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
-from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -104,15 +103,6 @@ async def session(engine) -> AsyncIterator[AsyncSession]:
     maker = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     async with maker() as s:
         yield s
-
-
-@pytest.fixture
-async def redis_client() -> AsyncIterator[Redis]:
-    client = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
-    await client.flushdb()
-    yield client
-    await client.flushdb()
-    await client.aclose()
 
 
 @pytest.fixture

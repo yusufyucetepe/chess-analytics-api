@@ -3,6 +3,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +21,9 @@ async def healthz() -> dict[str, str]:
 
 @router.get("/readyz")
 async def readyz(
-    response: Response, session: AsyncSession = Depends(get_session)
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    redis: Redis = Depends(get_redis),
 ) -> dict[str, Any]:
     """Readiness: we can actually serve traffic, i.e. Postgres and Redis answer."""
     checks: dict[str, str] = {}
@@ -32,7 +35,7 @@ async def readyz(
         checks["postgres"] = f"error: {type(exc).__name__}"
 
     try:
-        await get_redis().ping()
+        await redis.ping()
         checks["redis"] = "ok"
     except Exception as exc:
         checks["redis"] = f"error: {type(exc).__name__}"

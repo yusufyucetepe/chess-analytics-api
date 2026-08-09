@@ -10,14 +10,17 @@ import uuid
 from typing import Any
 
 from arq import Retry
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core import locks
 from app.core.config import settings
+from app.core.redis import get_redis
 from app.db.base import SessionLocal
 from app.db.models import Player, Report
 from app.ingest import ingest_player
 from app.lichess.client import LichessClient
-from app.report import service
+from app.report import cache, service
 from app.report.builder import build_payload
 from app.report.sections import build_sections
 from app.worker.failures import DEFAULT_MESSAGE, is_retryable, user_message
@@ -30,6 +33,9 @@ BUILD_REPORT = "build_report"
 async def build_report(ctx: dict[str, Any], report_id: str) -> dict[str, Any]:
     """Build one report. Returns a small summary, which arq stores as the result."""
     session_factory: async_sessionmaker[AsyncSession] = ctx.get("session_factory") or SessionLocal
+    # Deliberately not `ctx["redis"]`: that is arq's own pool, which speaks bytes
+    # and whose keyspace belongs to the queue.
+    redis: Redis = get_redis()
     attempt: int = ctx.get("job_try", 1)
 
     async with session_factory() as session:
@@ -58,12 +64,21 @@ async def build_report(ctx: dict[str, Any], report_id: str) -> dict[str, Any]:
         )
 
         try:
-            return await _run(session, report, player)
+            result = await _run(session, redis, report, player)
         except Exception as exc:
-            return await _fail(session, report, player, exc, attempt)
+            # When another attempt is due this re-raises as `arq.Retry`, which
+            # skips the release below on purpose: the lock has to outlive the
+            # attempt, or a request arriving during the backoff would start a
+            # second export of the same year.
+            result = await _fail(session, report, player, exc, attempt)
+
+        await locks.release(redis, locks.report_lock_key(player.username_lower), report_id)
+        return result
 
 
-async def _run(session: AsyncSession, report: Report, player: Player) -> dict[str, Any]:
+async def _run(
+    session: AsyncSession, redis: Redis, report: Report, player: Player
+) -> dict[str, Any]:
     # A client per job rather than a shared one: an export holds a connection
     # open for minutes, and that timeout has no business being reused by the
     # short profile calls the API makes.
@@ -103,6 +118,9 @@ async def _run(session: AsyncSession, report: Report, player: Player) -> dict[st
         games_total=games_total,
         games_analysed=games_analysed,
     )
+    # Evicted rather than overwritten: the next reader repopulates from the row,
+    # so the cache can never hold a rendering the table disagrees with.
+    await cache.forget(redis, player.username_lower)
     logger.info(
         "report %s done: %d games (%d analysed), %d fetched this run",
         report.id,

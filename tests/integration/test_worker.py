@@ -17,14 +17,16 @@ import pytest
 import respx
 from arq.worker import Worker
 from httpx import AsyncClient
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core import locks
 from app.core.config import settings
 from app.db.base import get_session
 from app.db.models import Player, ReportStatus
 from app.lichess import client as client_module
 from app.main import create_app
-from app.report import service
+from app.report import cache, service
 from app.report.builder import SECTIONS
 from app.worker import queue
 from app.worker.jobs import build_report
@@ -46,7 +48,8 @@ async def arq_redis(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[None]:
 
     ``close_pool`` matters as much as the flush: the pool is a module global, so
     a connection left open here would be handed to the next test bound to the
-    wrong event loop.
+    wrong event loop. The ``redis_client`` fixture does the same for the client
+    the app's own keys go through, which is a separate pool on the same server.
     """
     monkeypatch.setattr(settings, "redis_url", TEST_REDIS_URL)
     pool = await queue.get_pool()
@@ -244,6 +247,78 @@ async def test_polling_the_report_sees_it_finish(
     assert after.json()["status"] == ReportStatus.DONE
     assert after.json()["payload"]["coverage"]["games_total"] == FIXTURE_GAMES
     assert (await api.get(f"/api/v1/players/{USERNAME}/report")).status_code == 200
+
+
+# ------------------------------------------------------- lock and cache
+
+
+@respx.mock
+async def test_the_lock_is_released_once_the_report_is_built(
+    api: AsyncClient, sessions: async_sessionmaker[AsyncSession], redis_client: Redis
+) -> None:
+    """Held from the moment the row exists until the job is finished with it."""
+    mock_lichess()
+    report_id = await request_report(api)
+    key = locks.report_lock_key(USERNAME)
+    assert await redis_client.get(key) == str(report_id)
+
+    await run_worker(sessions)
+
+    assert await redis_client.get(key) is None
+
+
+@respx.mock
+async def test_a_report_that_fails_for_good_gives_the_lock_back(
+    api: AsyncClient,
+    sessions: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    redis_client: Redis,
+) -> None:
+    """Otherwise a player whose export broke waits half an hour to try again."""
+    monkeypatch.setattr(settings, "worker_max_tries", 3)
+    mock_lichess()
+    await request_report(api)
+    respx.get(path=f"/api/user/{USERNAME}").mock(return_value=httpx.Response(503))
+
+    await run_worker(sessions)
+
+    assert await redis_client.get(locks.report_lock_key(USERNAME)) is None
+
+
+@respx.mock
+async def test_the_lock_survives_a_retry_that_is_still_to_come(
+    api: AsyncClient,
+    sessions: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    redis_client: Redis,
+) -> None:
+    """The gap between attempts is exactly when a duplicate export could start."""
+    monkeypatch.setattr(settings, "worker_max_tries", 3)
+    mock_lichess()
+    report_id = await request_report(api)
+    respx.get(path=f"/api/user/{USERNAME}").mock(return_value=httpx.Response(503))
+
+    await run_worker(sessions, max_burst_jobs=1)
+
+    assert await redis_client.get(locks.report_lock_key(USERNAME)) == str(report_id)
+
+
+@respx.mock
+async def test_finishing_a_report_evicts_the_one_the_cache_was_holding(
+    api: AsyncClient, sessions: async_sessionmaker[AsyncSession], redis_client: Redis
+) -> None:
+    """A reader between two runs must not be served last week's year."""
+    mock_lichess()
+    report_id = await request_report(api)
+    await run_worker(sessions)
+    await api.get(f"/api/v1/players/{USERNAME}/report")
+    assert await cache.load(redis_client, USERNAME) is not None
+
+    pool = await queue.get_pool()
+    await pool.enqueue_job("build_report", str(report_id), _job_id="rerun")
+    await run_worker(sessions)
+
+    assert await cache.load(redis_client, USERNAME) is None
 
 
 # -------------------------------------------------------------------- retries

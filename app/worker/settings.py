@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 from arq.connections import RedisSettings
 
 from app.core.config import settings
+from app.core.redis import close_redis
 from app.db.base import SessionLocal, engine
 from app.worker.jobs import build_report
 from app.worker.queue import redis_settings
@@ -25,6 +26,7 @@ async def startup(ctx: dict[str, Any]) -> None:
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
+    await close_redis()
     # Only the pool this process opened; an injected factory belongs to whoever
     # passed it in.
     if ctx.get("session_factory") is SessionLocal:

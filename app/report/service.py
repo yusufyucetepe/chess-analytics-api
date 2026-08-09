@@ -14,13 +14,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.models import Game, Player, Report, ReportStatus
 
+#: Statuses a report can still move on from. Both terminal ones are final: a
+#: failed report is finished, not stuck, so the next request gets a new job.
 ACTIVE_STATUSES = (ReportStatus.PENDING, ReportStatus.RUNNING)
+
+
+def in_flight(report: Report | None) -> bool:
+    """Whether a job is still someone's to finish."""
+    return report is not None and report.status in ACTIVE_STATUSES
 
 
 def report_window(now: datetime | None = None) -> tuple[datetime, datetime]:
     """The rolling window a new report covers, ending now."""
     end = now or datetime.now(UTC)
     return end - timedelta(days=settings.report_window_days), end
+
+
+def is_fresh(completed_at: datetime | None) -> bool:
+    """Recent enough that rebuilding would re-scrape a year of games for nothing.
+
+    The same rule ``fresh_report`` applies in SQL, in a form the cache can use:
+    a cached entry outlives neither its own TTL nor this check, and which of the
+    two bites first is a tuning decision, not a correctness one.
+    """
+    if completed_at is None:
+        return False
+    return completed_at >= datetime.now(UTC) - timedelta(seconds=settings.report_fresh_ttl_s)
 
 
 async def get_report(session: AsyncSession, report_id: uuid.UUID) -> Report | None:
@@ -36,8 +55,8 @@ async def player_by_username(session: AsyncSession, username: str) -> Player | N
 async def fresh_report(session: AsyncSession, player_id: int) -> Report | None:
     """The player's most recent completed report, if it is still young enough.
 
-    The "don't re-scrape Lichess for a page refresh" rule. Step 7 puts a Redis
-    cache in front of it; the database answer stays authoritative.
+    The "don't re-scrape Lichess for a page refresh" rule. ``report.cache`` sits
+    in front of this; the database answer stays authoritative.
     """
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.report_fresh_ttl_s)
     stmt = (
@@ -64,32 +83,22 @@ async def latest_completed(session: AsyncSession, player_id: int) -> Report | No
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-async def active_report(session: AsyncSession, player_id: int) -> Report | None:
-    """A job already queued or running for this player, if there is one.
-
-    Bounded by ``ingest_lock_ttl_s``: a worker killed mid-ingest leaves a row
-    stuck in ``running``, which without an age limit would block the player from
-    ever getting a report again. Step 7 replaces this with the Redis lock.
-    """
-    cutoff = datetime.now(UTC) - timedelta(seconds=settings.ingest_lock_ttl_s)
-    stmt = (
-        select(Report)
-        .where(
-            Report.player_id == player_id,
-            Report.status.in_(ACTIVE_STATUSES),
-            Report.created_at >= cutoff,
-        )
-        .order_by(Report.created_at.desc())
-        .limit(1)
-    )
-    return (await session.execute(stmt)).scalar_one_or_none()
-
-
 async def create_report(
-    session: AsyncSession, player_id: int, *, period_start: datetime, period_end: datetime
+    session: AsyncSession,
+    player_id: int,
+    *,
+    report_id: uuid.UUID,
+    period_start: datetime,
+    period_end: datetime,
 ) -> Report:
-    """Open a pending report. The caller enqueues the job afterwards."""
+    """Open a pending report. The caller enqueues the job afterwards.
+
+    The id is chosen by the caller rather than by the table, because it is also
+    the token the ingest lock is taken with -- the lock has to be held before
+    there is a row to protect.
+    """
     report = Report(
+        id=report_id,
         player_id=player_id,
         period_start=period_start,
         period_end=period_end,
