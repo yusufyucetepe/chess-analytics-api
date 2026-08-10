@@ -74,7 +74,13 @@ class Settings(BaseSettings):
     report_fresh_ttl_s: int = 24 * 3600
     report_cache_ttl_s: int = 3600
     ingest_lock_ttl_s: int = 1800
+    #: Reports one address may ask to have built per hour. Zero disables it.
     rate_limit_per_hour: int = 10
+    #: Reads that recompute rather than serve a stored row -- the openings tree
+    #: runs several aggregates over a player's whole year, so it needs a ceiling
+    #: of its own. Far looser than the write limit: the work is bounded and the
+    #: only thing at stake is our own database. Zero disables it.
+    rate_limit_reads_per_hour: int = 120
 
     cors_origins: list[str] = Field(default_factory=list)
 

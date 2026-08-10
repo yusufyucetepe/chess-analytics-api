@@ -14,7 +14,13 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import EnqueueReport, enforce_rate_limit, get_enqueue, get_lichess_client
+from app.api.v1.deps import (
+    EnqueueReport,
+    enforce_rate_limit,
+    enforce_read_rate_limit,
+    get_enqueue,
+    get_lichess_client,
+)
 from app.api.v1.schemas import ReportRequest, ReportView, Username
 from app.core import locks
 from app.core.config import settings
@@ -133,6 +139,10 @@ async def latest_report(
 @router.get(
     "/players/{username}/openings",
     summary="The player's repertoire, computed live from the games we hold",
+    dependencies=[Depends(enforce_read_rate_limit)],
+    responses={
+        status.HTTP_429_TOO_MANY_REQUESTS: {"description": "Too many reads from this address"}
+    },
 )
 async def player_openings(
     username: Username, session: AsyncSession = Depends(get_session)

@@ -2,21 +2,16 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict
 
 from app.db.models import Report, ReportStatus
+from app.lichess.schemas import LichessUsername
 
-Username = Annotated[
-    str,
-    StringConstraints(
-        strip_whitespace=True,
-        min_length=2,
-        max_length=30,
-        pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,29}$",
-    ),
-]
+#: What the shape of a username is is a fact about Lichess, not about this API,
+#: so the pattern lives with the client and both directions share it.
+Username = LichessUsername
 
 
 class ReportRequest(BaseModel):

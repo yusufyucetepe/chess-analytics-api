@@ -18,8 +18,10 @@ from contextlib import aclosing
 from datetime import datetime
 from types import TracebackType
 from typing import Any, Self
+from urllib.parse import quote
 
 import httpx
+from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
 from app.lichess.errors import (
@@ -35,6 +37,18 @@ logger = logging.getLogger(__name__)
 
 #: Statuses worth a second attempt. 404 is deliberately absent.
 RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+
+def _segment(username: str) -> str:
+    """A username, safe to drop into a URL path.
+
+    ``safe=""`` so that a slash, a dot-dot or a query separator is encoded
+    rather than obeyed. The schema already refuses any username that would need
+    this -- but the encoding is what makes it structurally impossible for a
+    string to change which endpoint we call, rather than merely unlikely.
+    """
+    return quote(username, safe="")
+
 
 BACKOFF_BASE_S = 1.0
 BACKOFF_MAX_S = 60.0
@@ -114,13 +128,14 @@ class LichessClient:
 
     async def get_profile(self, username: str) -> PlayerProfile:
         """Profile, current ratings, and implicitly an existence check."""
-        payload = await self._get_json(f"/api/user/{username}", username=username)
-        return PlayerProfile.model_validate(payload)
+        payload = await self._get_json(f"/api/user/{_segment(username)}", username=username)
+        return self._parse(PlayerProfile, payload, path=f"/api/user/{username}")
 
     async def get_rating_history(self, username: str) -> list[PerfRatingHistory]:
         """Rating progression per perf, one curve each, oldest point first."""
-        payload = await self._get_json(f"/api/user/{username}/rating-history", username=username)
-        return [PerfRatingHistory.model_validate(perf) for perf in payload]
+        path = f"/api/user/{_segment(username)}/rating-history"
+        payload = await self._get_json(path, username=username)
+        return [self._parse(PerfRatingHistory, perf, path=path) for perf in payload]
 
     async def stream_games(
         self,
@@ -202,7 +217,7 @@ class LichessClient:
         }
         request = self._client.build_request(
             "GET",
-            f"/api/games/user/{username}",
+            f"/api/games/user/{_segment(username)}",
             params=params,
             headers={"Accept": "application/x-ndjson"},
             timeout=httpx.Timeout(
@@ -234,6 +249,21 @@ class LichessClient:
                     what=path,
                 )
                 attempt += 1
+
+    @staticmethod
+    def _parse[T: BaseModel](model: type[T], payload: Any, *, path: str) -> T:
+        """Validate a response body, or fail the same way a bad status does.
+
+        A profile that does not match the schema is Lichess disagreeing with our
+        model of it -- an outcome the callers already know how to handle. Left
+        as a ``ValidationError`` it would escape the route's ``except
+        LichessError`` and surface as a 500 with a pydantic dump in the log.
+        """
+        try:
+            return model.model_validate(payload)
+        except ValidationError as exc:
+            logger.warning("unexpected %s body from %s: %s", model.__name__, path, exc)
+            raise LichessResponseError(200, path) from exc
 
     def _raise_for_status(self, response: httpx.Response, username: str) -> None:
         status = response.status_code

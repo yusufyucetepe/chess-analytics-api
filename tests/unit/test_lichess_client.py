@@ -352,3 +352,82 @@ async def test_a_configured_token_is_sent_as_a_bearer(monkeypatch: pytest.Monkey
         await client.get_profile(USERNAME)
 
     assert route.calls.last.request.headers["authorization"] == "Bearer secret-token"
+
+
+# --------------------------------------------------------------- untrusted input
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "../../api/account",
+        "me/../../internal",
+        "me?token=leak",
+        "me#frag",
+        "me%2f..%2fadmin",
+        "a b",
+        "me:1",
+        "",
+    ],
+)
+def test_no_username_can_change_the_shape_of_a_path(hostile: str) -> None:
+    """Percent-encoding is what makes the URL structure independent of the value.
+
+    The schema refuses all of these long before they get here; this is the layer
+    that holds even if that one is ever relaxed.
+    """
+    encoded = client_module._segment(hostile)
+
+    # No separator survives, so whatever the value is it stays one path segment.
+    assert not {"/", "?", "#", "&", ":", " "} & set(encoded)
+
+
+@respx.mock
+async def test_a_traversal_username_is_sent_as_one_encoded_segment() -> None:
+    """It must go out as `/api/user/..%2F..%2Fadmin`, not resolve to `/api/admin`.
+
+    Read off ``raw_path``: ``url.path`` hands back the decoded form, which looks
+    traversed whether or not the bytes on the wire were.
+    """
+    route = respx.get(url__regex=r".*").mock(return_value=httpx.Response(404))
+
+    async with LichessClient() as client:
+        with pytest.raises(UserNotFoundError):
+            await client.get_profile("../../admin")
+
+    assert route.calls.last.request.url.raw_path == b"/api/user/..%2F..%2Fadmin"
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        {"id": "../../etc/passwd", "username": "Zhigalko_Sergei"},
+        {"id": "zhigalko_sergei", "username": "evil:key:collision"},
+        {"id": "a" * 200, "username": "Zhigalko_Sergei"},
+        {"id": "", "username": "Zhigalko_Sergei"},
+    ],
+)
+@respx.mock
+async def test_a_profile_naming_an_impossible_username_is_rejected(identity: dict) -> None:
+    """The value we act on afterwards is this one, not the one we asked for.
+
+    It becomes the export URL and both Redis keys, so a response that carries a
+    username we would never have accepted is treated as a broken response.
+    """
+    payload = json.loads(load_fixture("user_profile.json")) | identity
+    respx.get(path__startswith="/api/user/").mock(return_value=httpx.Response(200, json=payload))
+
+    async with LichessClient() as client:
+        with pytest.raises(LichessResponseError):
+            await client.get_profile(USERNAME)
+
+
+@respx.mock
+async def test_a_profile_that_is_not_a_profile_is_a_lichess_error_not_a_500() -> None:
+    """Anything unparseable has to arrive as an exception the callers already
+    handle -- a ValidationError would escape the route and become a 500."""
+    respx.get(path=PROFILE_PATH).mock(return_value=httpx.Response(200, json={"nope": True}))
+
+    async with LichessClient() as client:
+        with pytest.raises(LichessResponseError):
+            await client.get_profile(USERNAME)

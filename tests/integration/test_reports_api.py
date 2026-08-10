@@ -159,6 +159,28 @@ async def test_junk_usernames_never_reach_lichess(
 
 
 @respx.mock
+async def test_a_profile_naming_a_username_we_would_never_accept_is_refused(
+    api: AsyncClient, session: AsyncSession, queue: Queue, redis_client: Redis
+) -> None:
+    """The id in the response is what becomes the Redis keys and the export URL.
+
+    A colon in it would let one account's cache and lock keys land on another's,
+    so a profile carrying one is treated as a broken response rather than
+    trusted because we asked nicely.
+    """
+    payload = json.loads(load_fixture("user_profile.json")) | {"id": "a:b", "username": "a:b"}
+    respx.get(path=f"/api/user/{USERNAME}").mock(return_value=httpx.Response(200, json=payload))
+
+    resp = await post(api)
+
+    assert resp.status_code == 503
+    assert await count(session, Player) == 0
+    assert await count(session, Report) == 0
+    assert queue.enqueued == []
+    assert await redis_client.keys("lock:*") == []
+
+
+@respx.mock
 async def test_lichess_being_down_is_a_503_not_a_queued_job(
     api: AsyncClient, session: AsyncSession, queue: Queue
 ) -> None:
@@ -479,6 +501,47 @@ async def test_the_limit_can_be_switched_off(
         assert (await post(api)).status_code == 202
 
     assert await redis_client.keys("ratelimit:*") == [], "not even counted"
+
+
+@respx.mock
+async def test_the_openings_endpoint_has_a_ceiling_of_its_own(
+    api: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It recomputes several aggregates per call, behind no cache and no account."""
+    monkeypatch.setattr(settings, "rate_limit_reads_per_hour", 2)
+    mock_profile()
+    await post(api)
+
+    codes = [(await api.get(f"/api/v1/players/{USERNAME}/openings")).status_code for _ in range(3)]
+
+    assert codes == [200, 200, 429]
+
+
+@respx.mock
+async def test_the_read_limit_is_counted_apart_from_the_write_limit(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reading a repertoire must not spend the budget for building a report."""
+    monkeypatch.setattr(settings, "rate_limit_per_hour", 1)
+    mock_profile()
+    await post(api)
+
+    await api.get(f"/api/v1/players/{USERNAME}/openings")
+
+    assert (await post(api)).status_code == 429, "still exactly one report spent"
+
+
+async def test_a_dead_redis_still_serves_openings(
+    offline: AsyncClient, api: AsyncClient, session: AsyncSession
+) -> None:
+    """The read limiter fails open: it guards Postgres, and Postgres is still up."""
+    with respx.mock:
+        mock_profile()
+        await post(api)
+
+    resp = await offline.get(f"/api/v1/players/{USERNAME}/openings")
+
+    assert resp.status_code == 200
 
 
 @respx.mock

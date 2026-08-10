@@ -6,9 +6,28 @@ mapping to database rows belongs to the ingest layer rather than the client.
 """
 
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+
+#: A Lichess username: a letter, then letters, digits, underscores or hyphens.
+#:
+#: Written down once, and applied in both directions. Validating the request
+#: body is not enough on its own, because the value the app then acts on is the
+#: one Lichess sends back -- that is what goes into the export URL and into the
+#: Redis lock and cache keys. Anything outside this set could change the shape
+#: of a path or collide two players onto one key, so the response is held to the
+#: same rule as the request. A name we would refuse to accept is one we could
+#: never have looked up.
+LichessUsername = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=2,
+        max_length=30,
+        pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,29}$",
+    ),
+]
 
 
 def epoch_ms_to_datetime(value: int) -> datetime:
@@ -49,9 +68,10 @@ class PlayerProfile(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    #: Lowercased username; Lichess treats this as the canonical id.
-    id: str
-    username: str
+    #: Lowercased username; Lichess treats this as the canonical id, and so do
+    #: we -- it becomes ``players.username_lower`` and every Redis key.
+    id: LichessUsername
+    username: LichessUsername
     title: str | None = None
     created_at: datetime | None = Field(default=None, alias="createdAt")
     perfs: dict[str, PerfStats] = Field(default_factory=dict)
