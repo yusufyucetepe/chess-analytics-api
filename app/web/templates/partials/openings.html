@@ -1,0 +1,85 @@
+{% macro tree_nodes(nodes, depth) %}
+  <ul class="tree tree--{{ depth }}">
+    {% for node in nodes %}
+      <li>
+        {% if node.children %}
+          <details {% if depth < 1 %}open{% endif %}>
+            <summary>
+              <span class="san">{{ node.san }}</span>
+              <span class="tree-count">{{ node.games|commas }}</span>
+              <span class="tree-score">{{ node.score|percent(0) }}</span>
+            </summary>
+            {{ tree_nodes(node.children, depth + 1) }}
+          </details>
+        {% else %}
+          <span class="leaf">
+            <span class="san">{{ node.san }}</span>
+            <span class="tree-count">{{ node.games|commas }}</span>
+            <span class="tree-score">{{ node.score|percent(0) }}</span>
+          </span>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
+
+<section class="card">
+  <h2>Openings</h2>
+  <p class="lede">{{ openings.distinct_ecos }} distinct ECO codes over the year.</p>
+
+  {% if openings.best or openings.worst %}
+    <div class="facts">
+      {% if openings.best %}
+        <p><b>Best.</b> {{ openings.best.name or openings.best.eco }}
+           ({{ openings.best.eco }}) as {{ openings.best.color }} &mdash;
+           {{ openings.best.score|percent }} over {{ openings.best.games }} games.</p>
+      {% endif %}
+      {% if openings.worst %}
+        <p><b>Worst.</b> {{ openings.worst.name or openings.worst.eco }}
+           ({{ openings.worst.eco }}) as {{ openings.worst.color }} &mdash;
+           {{ openings.worst.score|percent }} over {{ openings.worst.games }} games.</p>
+      {% endif %}
+      <p class="fine">Ranked over openings with at least
+         {{ openings.min_games_for_ranking }} games behind them.</p>
+    </div>
+  {% endif %}
+
+  <div class="columns">
+    {% for colour in ["white", "black"] %}
+      {% set side = openings.by_color[colour] %}
+      <div>
+        <h3>As {{ colour }}</h3>
+        <p class="fine">{{ side.games|commas }} games, {{ side.distinct_ecos }} ECOs.</p>
+        {% if side.top %}
+          <table class="grid">
+            <thead>
+              <tr><th scope="col">Opening</th><th scope="col">Games</th><th scope="col">Score</th></tr>
+            </thead>
+            <tbody>
+              {% for entry in side.top %}
+                <tr>
+                  <th scope="row"><span class="eco">{{ entry.eco }}</span> {{ entry.name or "Unnamed" }}</th>
+                  <td>{{ entry.games|commas }}</td>
+                  <td>{{ entry.score|percent }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="hint">Nothing with an ECO code yet.</p>
+        {% endif %}
+
+        {% if openings.tree[colour] %}
+          <h4>Repertoire</h4>
+          {{ tree_nodes(openings.tree[colour], 0) }}
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <p class="fine">
+    Tree shows the first {{ openings.tree.plies }} plies, for lines played at
+    least {{ openings.tree.min_games }} times. The percentage is your score down
+    that line.
+  </p>
+</section>

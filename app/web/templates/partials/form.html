@@ -1,0 +1,22 @@
+{# The one copy of the form. Its id is the swap target, so whatever comes back
+   from /reports -- the job poller or a problem -- lands exactly where it was. #}
+<form class="ask"
+      id="ask"
+      hx-post="/reports"
+      hx-target="#ask"
+      hx-swap="outerHTML"
+      hx-disabled-elt="find button">
+  <label class="visually-hidden" for="username">Lichess username</label>
+  <input id="username"
+         name="username"
+         type="text"
+         value="{{ username|default('', true) }}"
+         placeholder="Zhigalko_Sergei"
+         autocomplete="off"
+         autocapitalize="off"
+         spellcheck="false"
+         maxlength="30"
+         required>
+  <button type="submit">Wrap my year</button>
+  <p class="hint htmx-indicator">Asking Lichess&hellip;</p>
+</form>

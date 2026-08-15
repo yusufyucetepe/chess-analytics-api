@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Chess Wrapped{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#9822;</text></svg>">
+  {# Both vendored. The brief asks for one deployable, and a CDN would make the
+     page depend on a host we do not run and cannot keep up. #}
+  <script src="/static/htmx.min.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">&#9822; Chess Wrapped</a>
+    <span class="tagline">Your Lichess year, wrapped.</span>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site">
+    <p>
+      Built on the <a href="https://lichess.org/api" rel="noopener">Lichess public API</a>.
+      Not affiliated with Lichess. <a href="/docs">API docs</a>.
+    </p>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

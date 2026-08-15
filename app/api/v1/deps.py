@@ -134,4 +134,9 @@ async def _enforce(
             "Someone else's year is being wrapped; try again shortly.",
             headers={**headers, "Retry-After": str(decision.reset_in_s)},
         )
+    # Only reaches the client on the JSON endpoints. FastAPI merges a
+    # dependency's headers into the response it builds from a returned value,
+    # and the web routes return a `Response` of their own -- so the HTML pages
+    # get the limit enforced but not reported. A browser has no use for the
+    # numbers; the refusal above carries its own headers either way.
     response.headers.update(headers)

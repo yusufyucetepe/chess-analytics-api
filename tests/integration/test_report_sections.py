@@ -343,6 +343,34 @@ async def test_progression_tracks_start_end_peak_and_net(
     assert perf["blitz"]["net"] == 20
 
 
+async def test_a_player_who_only_ever_lost_peaks_where_they_started(
+    session: AsyncSession, player: Player
+) -> None:
+    """The rating carried into the first game counts as one the player held.
+
+    Taken over the after-game rating alone, someone who dropped from their
+    provisional 1500 and never recovered would be reported as peaking at their
+    lowest point, which reads as a contradiction next to the start figure.
+    """
+    await seed(
+        session,
+        player,
+        [
+            {"player_rating": 1500, "rating_diff": -40},
+            {"player_rating": 1460, "rating_diff": -60},
+            {"player_rating": 1400, "rating_diff": -98},
+        ],
+    )
+
+    perf = (await progression.build(session, player.id, since=SINCE, until=UNTIL))["by_perf"]
+
+    assert perf["blitz"]["start"] == 1500
+    assert perf["blitz"]["end"] == 1302
+    assert perf["blitz"]["peak"] == 1500, "never above where they came in"
+    assert perf["blitz"]["low"] == 1302
+    assert perf["blitz"]["net"] == -198
+
+
 async def test_progression_keeps_the_perfs_apart(session: AsyncSession, player: Player) -> None:
     await seed(
         session,

@@ -27,43 +27,11 @@ from app.db.models import Color, Game, Player, Report, ReportStatus, Result
 from app.main import create_app
 from app.report import cache, service
 from tests.conftest import load_fixture
+from tests.integration.conftest import Queue
 from tests.integration.test_redis_layer import broken
 
 USERNAME = "Zhigalko_Sergei"
 USERNAME_LOWER = USERNAME.lower()
-
-
-class Queue:
-    """Stands in for arq. Records what the route asked to be built."""
-
-    def __init__(self) -> None:
-        self.enqueued: list[uuid.UUID] = []
-
-    async def __call__(self, report_id: uuid.UUID) -> None:
-        self.enqueued.append(report_id)
-
-
-@pytest.fixture
-def queue() -> Queue:
-    return Queue()
-
-
-@pytest.fixture
-async def api(session: AsyncSession, queue: Queue):
-    """The app with the test session and a recording queue wired in."""
-    from app.db.base import get_session
-
-    app = create_app()
-
-    async def _session():
-        yield session
-
-    app.dependency_overrides[get_session] = _session
-    app.dependency_overrides[get_enqueue] = lambda: queue
-    transport = httpx.ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-    app.dependency_overrides.clear()
 
 
 def mock_profile(username: str = USERNAME) -> None:

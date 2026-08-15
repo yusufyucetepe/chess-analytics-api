@@ -1,0 +1,239 @@
+/* One stylesheet, no framework. The page is a handful of layouts and a colour
+   scheme; a build step for that would cost more than it saves. */
+
+:root {
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --page: #faf9f7;
+  --card: #ffffff;
+  --ink: #1c1917;
+  --muted: #78716c;
+  --rule: #e7e5e4;
+  --accent: #2563eb;
+
+  --win: #059669;
+  --draw: #a8a29e;
+  --loss: #dc2626;
+
+  --positional: #0891b2;
+  --aggressive: #dc2626;
+  --tactical: #7c3aed;
+
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(28 25 23 / 6%), 0 8px 24px rgb(28 25 23 / 4%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #12100f;
+    --card: #1c1917;
+    --ink: #f5f5f4;
+    --muted: #a8a29e;
+    --rule: #292524;
+    --accent: #60a5fa;
+    --shadow: none;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+h1, h2, h3, h4 { line-height: 1.2; margin: 0 0 .5rem; }
+h1 { font-size: clamp(1.9rem, 5vw, 3rem); letter-spacing: -.02em; }
+h2 { font-size: 1.35rem; letter-spacing: -.01em; }
+h3 { font-size: 1.05rem; }
+h4 { font-size: .9rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 1.25rem; }
+
+main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+
+header.site, footer.site {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+  display: flex;
+  gap: .75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+header.site { border-bottom: 1px solid var(--rule); }
+footer.site { border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem; margin-top: 2rem; }
+.brand { font-weight: 700; text-decoration: none; color: var(--ink); }
+.tagline { color: var(--muted); font-size: .9rem; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------------------------------------------------------------- landing */
+
+.hero { padding: 2.5rem 0; }
+.lede { font-size: 1.05rem; color: var(--muted); max-width: 42rem; }
+.fine { font-size: .82rem; color: var(--muted); }
+.hint { font-size: .9rem; color: var(--muted); }
+
+.ask { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1.75rem 0 1rem; }
+.ask input {
+  flex: 1 1 18rem;
+  padding: .8rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.ask input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button, .button {
+  padding: .8rem 1.4rem;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+button:disabled { opacity: .55; cursor: progress; }
+
+/* htmx toggles this class on the element for the duration of the request. */
+.htmx-indicator { display: none; flex-basis: 100%; margin: 0; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: block; }
+
+/* ------------------------------------------------------------------- job */
+
+.job {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+}
+.job--failed { border-color: var(--loss); }
+.problem { color: var(--loss); font-weight: 500; }
+
+.spinner {
+  width: 2rem; height: 2rem; margin: 1.25rem 0;
+  border: 3px solid var(--rule);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 3s; }
+}
+
+/* ---------------------------------------------------------------- report */
+
+.wrap-hero { padding: 2rem 0 1rem; }
+.eyebrow { text-transform: uppercase; letter-spacing: .1em; font-size: .75rem; color: var(--muted); margin: 0 0 .5rem; }
+.title-badge {
+  font-size: .5em; vertical-align: middle; font-weight: 700;
+  background: var(--accent); color: #fff;
+  padding: .2em .5em; border-radius: 6px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1.25rem 0;
+  box-shadow: var(--shadow);
+}
+.card--feature { text-align: center; }
+.card.meta { background: none; border: 0; box-shadow: none; padding: 0; }
+
+.archetype { font-size: clamp(1.6rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; margin: .25rem 0; }
+.archetype--shy { color: var(--muted); font-weight: 600; }
+.signature { max-width: 40rem; margin: 1rem auto; }
+
+.wdl, .axes { display: flex; height: 1.5rem; border-radius: 999px; overflow: hidden; margin: 1.25rem 0 .5rem; }
+.wdl span { display: block; }
+.wdl-win { background: var(--win); }
+.wdl-draw { background: var(--draw); }
+.wdl-loss { background: var(--loss); }
+.wdl-key { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .9rem; color: var(--muted); margin: 0; }
+.wdl-key .score { margin-left: auto; }
+
+.axes { height: 2rem; }
+.axes span {
+  display: grid; place-items: center;
+  color: #fff; font-size: .8rem; font-weight: 700;
+  min-width: 0; overflow: hidden;
+}
+.axis-positional { background: var(--positional); }
+.axis-aggressive { background: var(--aggressive); }
+.axis-tactical { background: var(--tactical); }
+.axes-key { display: flex; gap: 1.25rem; justify-content: center; font-size: .8rem; margin: 0 0 1rem; }
+.key-positional { color: var(--positional); }
+.key-aggressive { color: var(--aggressive); }
+.key-tactical { color: var(--tactical); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: .75rem; margin: 1.25rem 0; }
+.tile { background: var(--page); border-radius: var(--radius); padding: 1rem; text-align: center; }
+.tile b { display: block; font-size: 1.6rem; letter-spacing: -.02em; }
+.tile span { font-size: .8rem; color: var(--muted); }
+
+.signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; margin: 1.5rem 0 .5rem; }
+.signals div { background: var(--page); border-radius: var(--radius); padding: .75rem; }
+.signals dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.signals dd { margin: .15rem 0 0; font-weight: 700; }
+
+.facts p { margin: .6rem 0; }
+.caveat {
+  background: var(--page);
+  border-left: 3px solid var(--accent);
+  padding: .75rem 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: .92rem;
+}
+
+.columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 2rem; }
+
+table.grid { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .92rem; }
+table.grid th, table.grid td { padding: .5rem .6rem; text-align: right; border-bottom: 1px solid var(--rule); }
+table.grid th[scope="row"] { text-align: left; font-weight: 500; }
+table.grid thead th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.eco { font-family: var(--mono); font-size: .85em; color: var(--muted); }
+.up { color: var(--win); font-weight: 600; }
+.down { color: var(--loss); font-weight: 600; }
+
+.chart { position: relative; margin: 1.25rem 0; }
+
+/* The repertoire tree: <details> for anything with a continuation, so it opens
+   and closes without a line of JavaScript. */
+.tree { list-style: none; margin: 0; padding: 0; }
+.tree--1, .tree--2, .tree--3, .tree--4, .tree--5, .tree--6, .tree--7 {
+  padding-left: 1rem;
+  border-left: 1px solid var(--rule);
+  margin-left: .35rem;
+}
+.tree li { margin: .1rem 0; }
+.tree summary, .tree .leaf {
+  display: flex; gap: .5rem; align-items: baseline;
+  padding: .15rem .4rem; border-radius: 6px;
+  font-size: .9rem; cursor: pointer;
+}
+.tree .leaf { cursor: default; }
+.tree summary:hover { background: var(--page); }
+.tree .san { font-family: var(--mono); font-weight: 600; min-width: 3.5rem; }
+.tree-count { color: var(--muted); font-size: .82rem; }
+.tree-score { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }

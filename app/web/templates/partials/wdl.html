@@ -1,0 +1,14 @@
+{# Win/draw/loss as one bar. Widths come from the counts, so the bar is the
+   record rather than a picture of it. #}
+<div class="wdl" role="img"
+     aria-label="{{ headline.wins }} wins, {{ headline.draws }} draws, {{ headline.losses }} losses">
+  <span class="wdl-win"  style="flex-grow: {{ headline.wins }}"></span>
+  <span class="wdl-draw" style="flex-grow: {{ headline.draws }}"></span>
+  <span class="wdl-loss" style="flex-grow: {{ headline.losses }}"></span>
+</div>
+<p class="wdl-key">
+  <span><b>{{ headline.wins|commas }}</b> won</span>
+  <span><b>{{ headline.draws|commas }}</b> drawn</span>
+  <span><b>{{ headline.losses|commas }}</b> lost</span>
+  <span class="score">{{ headline.win_rate|percent }} win rate &middot; scoring {{ headline.score|percent }}</span>
+</p>

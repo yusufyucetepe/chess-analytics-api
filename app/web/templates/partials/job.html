@@ -1,0 +1,29 @@
+{# The polling fragment. It replaces itself on every tick, which is what stops
+   the polling: a finished job answers with HX-Redirect and a failed one with a
+   copy of this without the hx-get, so there is nothing left asking. #}
+<div id="ask" class="job {% if failed %}job--failed{% endif %}"
+     {% if not failed %}
+     hx-get="/reports/{{ view.id }}/status"
+     hx-trigger="every {{ poll_seconds }}s"
+     hx-swap="outerHTML"
+     {% endif %}>
+
+  {% if failed %}
+    <h2>That didn't work</h2>
+    <p class="problem">{{ view.error or "Something went wrong building this report." }}</p>
+    <p><a class="button" href="/">Try another username</a></p>
+  {% else %}
+    <h2>Wrapping {{ view.username }}&hellip;</h2>
+    <div class="spinner" role="status" aria-live="polite">
+      <span class="visually-hidden">Building the report</span>
+    </div>
+    <p class="hint">
+      {% if view.status == "pending" %}
+        Queued. A worker will pick this up in a moment.
+      {% else %}
+        Streaming a year of games from Lichess. This is the slow part.
+      {% endif %}
+    </p>
+    <p class="fine">Report {{ view.id }}</p>
+  {% endif %}
+</div>

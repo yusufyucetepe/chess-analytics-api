@@ -1,0 +1,7 @@
+{# Rendered in place of the form, so the id is the form's: the user gets the
+   message where the thing they submitted used to be. #}
+<div id="ask" class="job job--failed">
+  <h2>{% if username %}No report for {{ username }}{% else %}That didn't work{% endif %}</h2>
+  <p class="problem">{{ message }}</p>
+  <p><a class="button" href="/">Back to the form</a></p>
+</div>

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Nothing here yet &ndash; Chess Wrapped{% endblock %}
+
+{# The whole-page form of a problem: someone followed a link to /u/someone we
+   have never wrapped. The message, then the form pre-filled with what they
+   asked for, because building it is the obvious next thing to want. #}
+{% block content %}
+<section class="hero">
+  <h1>{% if username %}No report for {{ username }} yet{% else %}That didn't work{% endif %}</h1>
+  <p class="lede">{{ message }}</p>
+
+  {% include "partials/form.html" %}
+</section>
+{% endblock %}

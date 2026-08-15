@@ -1,0 +1,61 @@
+<section class="card">
+  <h2>The year in numbers</h2>
+
+  <div class="tiles">
+    <div class="tile"><b>{{ headline.games|commas }}</b><span>rated games</span></div>
+    <div class="tile"><b>{{ headline.hours_played|commas }}</b><span>hours played</span></div>
+    <div class="tile"><b>{{ headline.moves_played|commas }}</b><span>moves made</span></div>
+    <div class="tile"><b>{{ headline.days_played|commas }}</b><span>days at the board</span></div>
+  </div>
+
+  <div class="facts">
+    {% if headline.best_win %}
+      {% set win = headline.best_win %}
+      <p>
+        <b>Best win.</b>
+        <a href="{{ win.url }}" rel="noopener">{{ win.opponent }}</a>
+        ({{ win.opponent_rating }}) as {{ win.color }} in {{ win.perf }}, {{ win.played_at|day }}
+        {%- if win.rating_gap is not none %} &mdash; {{ win.rating_gap|signed }} on your own rating{% endif %}.
+      </p>
+    {% endif %}
+
+    {% if headline.longest_win_streak %}
+      {% set streak = headline.longest_win_streak %}
+      <p>
+        <b>Longest win streak.</b> {{ streak.games }} in a row,
+        {{ streak.start|day }} to {{ streak.end|day }}.
+      </p>
+    {% endif %}
+
+    {% if headline.busiest_day %}
+      {% set busiest = headline.busiest_day %}
+      <p>
+        <b>Busiest day.</b> {{ busiest.date|day }} &mdash; {{ busiest.games }} games,
+        {{ busiest.wins }}W&nbsp;{{ busiest.draws }}D&nbsp;{{ busiest.losses }}L.
+      </p>
+    {% endif %}
+  </div>
+
+  {% if headline.by_perf %}
+    <table class="grid">
+      <caption class="visually-hidden">Record by time control</caption>
+      <thead>
+        <tr><th scope="col">Time control</th><th scope="col">Games</th>
+            <th scope="col">W</th><th scope="col">D</th><th scope="col">L</th>
+            <th scope="col">Score</th></tr>
+      </thead>
+      <tbody>
+        {% for perf in headline.by_perf %}
+          <tr>
+            <th scope="row">{{ perf.perf }}</th>
+            <td>{{ perf.games|commas }}</td>
+            <td>{{ perf.wins|commas }}</td>
+            <td>{{ perf.draws|commas }}</td>
+            <td>{{ perf.losses|commas }}</td>
+            <td>{{ perf.score|percent }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>

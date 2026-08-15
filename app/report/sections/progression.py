@@ -77,14 +77,22 @@ async def _monthly(
     # rating can come from.
     after = Game.player_rating + func.coalesce(Game.rating_diff, 0)
     month = func.date_trunc("month", Game.played_at).label("month")
+    # Peak and low span every rating the player *held*, which is the rating they
+    # carried into each game as well as the one they left it on. Taken over
+    # `after` alone they would miss the opening rating, and a player who only
+    # ever went down would be reported as peaking at their lowest point -- the
+    # series starts at the rating before the first game, so the extremes have to
+    # start there too. Neither column is NULL here: the WHERE excludes a missing
+    # `player_rating` and `after` coalesces the diff, so GREATEST and LEAST
+    # ignoring NULLs cannot bite.
     stmt = (
         select(
             Game.perf,
             month,
             func.count().label("games"),
             func.avg(after).label("average"),
-            func.max(after).label("peak"),
-            func.min(after).label("low"),
+            func.greatest(func.max(after), func.max(Game.player_rating)).label("peak"),
+            func.least(func.min(after), func.min(Game.player_rating)).label("low"),
             _first(Game.player_rating, *order).label("first_rating"),
             _first(after, Game.played_at.desc(), Game.game_id.desc()).label("last_rating"),
         )

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <h1>What did your chess year look like?</h1>
+  <p class="lede">
+    Type a Lichess username. We read the last twelve months of rated games and
+    hand back the openings, the hours, the streaks and the tilt.
+  </p>
+
+  {% include "partials/form.html" %}
+
+  <p class="fine">
+    The first run for a busy account takes a few minutes -- we stream a year of
+    games. Afterwards it lives at <code>/u/username</code>.
+  </p>
+</section>
+{% endblock %}

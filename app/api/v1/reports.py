@@ -74,7 +74,7 @@ async def request_report(
     profile = await _fetch_profile(lichess, body.username)
     player = await upsert_player(session, profile)
 
-    recent = await _completed_report(session, redis, player, service.fresh_report)
+    recent = await completed_report(session, redis, player, service.fresh_report)
     if recent and service.is_fresh(recent.completed_at):
         response.status_code = status.HTTP_200_OK
         return recent
@@ -127,7 +127,7 @@ async def latest_report(
     created from a GET would be an unmetered path to the Lichess export.
     """
     player = await _known_player(session, username)
-    report = await _completed_report(session, redis, player, service.latest_completed)
+    report = await completed_report(session, redis, player, service.latest_completed)
     if report is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
@@ -162,7 +162,7 @@ async def player_openings(
     }
 
 
-async def _completed_report(
+async def completed_report(
     session: AsyncSession, redis: Redis, player: Player, lookup: Lookup
 ) -> ReportView | None:
     """Read through Redis to the table, caching whatever the table gave.

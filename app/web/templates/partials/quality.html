@@ -1,0 +1,39 @@
+{# The one section built on a biased sample, so the caveat is not a footnote --
+   it is the first thing in the section, and below the threshold there are no
+   numbers at all rather than a misleading average. #}
+<section class="card">
+  <h2>Move quality</h2>
+
+  {% if quality.available %}
+    <p class="caveat">{{ coverage.caveat }}</p>
+
+    {% set totals = quality.totals %}
+    <div class="tiles">
+      <div class="tile"><b>{{ totals.accuracy }}%</b><span>average accuracy</span></div>
+      <div class="tile"><b>{{ totals.acpl }}</b><span>average centipawn loss</span></div>
+      <div class="tile"><b>{{ totals.blunders_per_game }}</b><span>blunders per game</span></div>
+      <div class="tile"><b>{{ totals.mistakes_per_game }}</b><span>mistakes per game</span></div>
+    </div>
+
+    <p class="facts">
+      Across those games: {{ totals.blunders|commas }} blunders,
+      {{ totals.mistakes|commas }} mistakes and
+      {{ totals.inaccuracies|commas }} inaccuracies.
+    </p>
+
+    <p class="fine">
+      Analysed games are ones you asked Lichess to analyse, which is not a
+      random sample of your year. Read these as a description of those games,
+      not of your play in general.
+    </p>
+  {% else %}
+    <p class="caveat">{{ coverage.caveat }}</p>
+    <p>
+      We never run our own engine, so these numbers exist only for games that
+      were already analysed. {{ quality.games_analysed|commas }} is under the
+      {{ quality.min_analysed_games }} this section needs, and an average over
+      that few self-selected games would say more about which games you chose to
+      analyse than about how you played.
+    </p>
+  {% endif %}
+</section>

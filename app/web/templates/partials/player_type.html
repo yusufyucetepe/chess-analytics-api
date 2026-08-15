@@ -1,0 +1,47 @@
+{# The classifier's verdict. Presented as a heuristic throughout, because that
+   is what it is -- no engine sees any of this. #}
+<section class="card card--feature">
+  <h2>You play like a&hellip;</h2>
+
+  {% if type.label %}
+    <p class="archetype">{{ type.label }}</p>
+  {% else %}
+    <p class="archetype archetype--shy">Not enough games to call it</p>
+    <p class="hint">
+      {{ type.games|commas }} of the {{ type.min_games }} games this needs. The
+      split below is still computed, it just isn't a personality yet.
+    </p>
+  {% endif %}
+
+  {% if type.scores.positional is not none %}
+    <div class="axes" role="img"
+         aria-label="positional {{ type.scores.positional }}, aggressive {{ type.scores.aggressive }}, tactical {{ type.scores.tactical }} out of 100">
+      <span class="axis-positional" style="flex-grow: {{ type.scores.positional }}">{{ type.scores.positional }}</span>
+      <span class="axis-aggressive" style="flex-grow: {{ type.scores.aggressive }}">{{ type.scores.aggressive }}</span>
+      <span class="axis-tactical"   style="flex-grow: {{ type.scores.tactical }}">{{ type.scores.tactical }}</span>
+    </div>
+    <p class="axes-key">
+      <span class="key-positional">positional</span>
+      <span class="key-aggressive">aggressive</span>
+      <span class="key-tactical">tactical</span>
+    </p>
+  {% endif %}
+
+  {% if type.signature %}
+    <p class="signature">
+      Your repertoire is <b>{{ type.signature.adjective|lower }}</b> in
+      {{ type.signature.share|percent(0) }} of games
+      {%- if type.signature.lift %} &mdash; {{ type.signature.lift }}&times; more often
+      than the ECO table would suggest{% endif %}.
+    </p>
+  {% endif %}
+
+  <dl class="signals">
+    <div><dt>Average game</dt><dd>{{ type.signals.avg_plies|default('--', true) }} plies</dd></div>
+    <div><dt>Gambit lines</dt><dd>{{ type.signals.gambit_share|percent }}</dd></div>
+    <div><dt>Decided at the board</dt><dd>{{ type.signals.forced_ending_share|percent }}</dd></div>
+    <div><dt>Lost on time</dt><dd>{{ type.signals.flagged_share|percent }}</dd></div>
+  </dl>
+
+  <p class="fine">{{ type.disclaimer }}</p>
+</section>

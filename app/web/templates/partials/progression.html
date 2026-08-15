@@ -1,0 +1,42 @@
+<section class="card">
+  <h2>Rating</h2>
+
+  {% if progression.main_perf %}
+    {% set main = progression.by_perf[progression.main_perf] %}
+    <p class="lede">
+      Your {{ progression.main_perf }} rating went
+      {{ main.start }} &rarr; {{ main.end }} over the year
+      ({{ main.net|signed }}), peaking at {{ main.peak }}.
+    </p>
+
+    <div class="chart"><canvas id="chart-rating" height="260"></canvas></div>
+
+    <table class="grid">
+      <caption class="visually-hidden">Rating change by time control</caption>
+      <thead>
+        <tr><th scope="col">Time control</th><th scope="col">Games</th>
+            <th scope="col">Start</th><th scope="col">End</th>
+            <th scope="col">Net</th><th scope="col">Peak</th></tr>
+      </thead>
+      <tbody>
+        {% for perf, stats in progression.by_perf.items() %}
+          <tr>
+            <th scope="row">{{ perf }}</th>
+            <td>{{ stats.games|commas }}</td>
+            <td>{{ stats.start }}</td>
+            <td>{{ stats.end }}</td>
+            <td class="{% if stats.net > 0 %}up{% elif stats.net < 0 %}down{% endif %}">{{ stats.net|signed }}</td>
+            <td>{{ stats.peak }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="fine">
+      Taken from the rating carried into each game, so the curve is sampled at
+      every game rather than once a day, and averaged by month.
+    </p>
+  {% else %}
+    <p>No rated games with a rating attached in this window.</p>
+  {% endif %}
+</section>

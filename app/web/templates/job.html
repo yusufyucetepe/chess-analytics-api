@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Wrapping {{ view.username }} &ndash; Chess Wrapped{% endblock %}
+
+{# The same fragment as a whole page, for a browser that arrived without HTMX --
+   a bookmarked poll URL, or JavaScript switched off. It still refreshes,
+   because the fragment carries its own hx-get once HTMX loads. #}
+{% block content %}
+<section class="hero">
+  {% include "partials/job.html" %}
+</section>
+{% endblock %}
