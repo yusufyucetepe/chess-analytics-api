@@ -11,7 +11,7 @@ with nothing to say can abstain by voting down the middle instead of dragging
 the answer somewhere it did not intend.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -43,6 +43,7 @@ from app.report.player_type_weights import (
     TAG_AXES,
 )
 from app.report.sections._common import rate, window
+from app.report.shades import match as shades_for
 
 Vote = dict[str, float]
 
@@ -110,14 +111,19 @@ def classify(signals: Signals) -> dict[str, Any]:
     # somewhere, but not far enough for the noun to claim otherwise.
     decided = ranked[0][0] if ranked[0][1] - ranked[1][1] >= BLEND_MARGIN else None
     flavour = _flavour(signals)
+    label = _name(decided, flavour) if confident else None
 
     return _verdict(
         signals,
         scores=scores,
         leaning=ranked[0][0],
-        label=_name(decided, flavour) if confident else None,
+        label=label,
         confident=confident,
         flavour=flavour,
+        # Withheld with the label rather than with the scores: naming three
+        # grandmasters off a dozen games would be a stronger claim than the
+        # label we already refused to make.
+        shades=shades_for(scores, flavour) if label else (),
     )
 
 
@@ -169,6 +175,7 @@ def _verdict(
     label: str | None,
     confident: bool,
     flavour: str | None = None,
+    shades: Sequence[str] = (),
 ) -> dict[str, Any]:
     baseline = tag_baseline().get(flavour or "", 0.0)
     share = signals.tag_counts.get(flavour or "", 0) / (signals.tagged_games or 1)
@@ -177,6 +184,9 @@ def _verdict(
         "confident": confident,
         "scores": scores,
         "leaning": leaning,
+        # Nearest names on the same three axes. Empty rather than absent, so a
+        # consumer never has to tell "we withheld these" from "old payload".
+        "shades": list(shades),
         # What earned the adjective, so the frontend can say "you play offbeat
         # openings ten times more often than the ECO table would suggest".
         "signature": (

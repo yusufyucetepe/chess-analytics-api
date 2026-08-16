@@ -120,6 +120,33 @@ def test_the_disclaimer_is_on_the_page_not_just_in_the_payload(request_: Request
     assert "not a measurement" in render_report(request_, full_payload())
 
 
+def test_the_shades_are_named_above_the_archetype(request_: Request) -> None:
+    html = render_report(request_, full_payload())
+    shades = full_payload()["sections"]["player_type"]["shades"]
+
+    assert "Shades of:" in html
+    for name in shades:
+        assert name in html
+    assert html.index("Shades of:") < html.index("archetype")
+
+
+def test_a_thin_year_is_told_no_names(request_: Request) -> None:
+    """Withheld with the label, not shown as an empty list."""
+    assert "Shades of:" not in render_report(request_, sparse_payload())
+
+
+def test_a_report_built_before_shades_existed_still_renders(request_: Request) -> None:
+    """The templates run on StrictUndefined, so a missing key is an exception
+    rather than a blank -- and stored payloads predate this section."""
+    payload = full_payload()
+    del payload["sections"]["player_type"]["shades"]
+
+    html = render_report(request_, payload)
+
+    assert "Shades of:" not in html
+    assert "Offbeat Strategist" in html
+
+
 def test_the_repertoire_tree_nests(request_: Request) -> None:
     """A line with a continuation is a <details>, so it folds without JavaScript."""
     html = render_report(request_, full_payload())

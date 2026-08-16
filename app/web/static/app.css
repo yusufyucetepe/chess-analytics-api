@@ -161,6 +161,12 @@ button:disabled { opacity: .55; cursor: progress; }
 .card--feature { text-align: center; }
 .card.meta { background: none; border: 0; box-shadow: none; padding: 0; }
 
+.shades {
+  font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 1rem;
+}
+.shades b { color: var(--ink); font-weight: 700; white-space: nowrap; }
+
 .archetype { font-size: clamp(1.6rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; margin: .25rem 0; }
 .archetype--shy { color: var(--muted); font-weight: 600; }
 .signature { max-width: 40rem; margin: 1rem auto; }

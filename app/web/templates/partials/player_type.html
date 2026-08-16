@@ -1,6 +1,14 @@
 {# The classifier's verdict. Presented as a heuristic throughout, because that
    is what it is -- no engine sees any of this. #}
 <section class="card card--feature">
+  {# `.get`, not `type.shades`: reports built before this existed have no such
+     key, and the environment runs on StrictUndefined. #}
+  {% if type.get('shades') %}
+    <p class="shades">Shades of:
+      {% for name in type.shades %}<b>{{ name }}</b>{% if not loop.last %} &middot; {% endif %}{% endfor %}
+    </p>
+  {% endif %}
+
   <h2>You play like a&hellip;</h2>
 
   {% if type.label %}

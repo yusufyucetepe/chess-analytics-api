@@ -335,6 +335,7 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
                     "share": 0.1042,
                     "lift": 10.4,
                 },
+                "shades": ["Bobby Fischer", "Magnus Carlsen", "Fabiano Caruana"],
                 "games": 357,
                 "min_games": 30,
                 "disclaimer": (
@@ -415,6 +416,7 @@ def sparse_payload() -> dict[str, Any]:
         "confident": False,
         "scores": {"positional": 33, "aggressive": 34, "tactical": 33},
         "signature": None,
+        "shades": [],
         "games": 6,
         "signals": sections["player_type"]["signals"] | {"avg_plies": None},
     }
