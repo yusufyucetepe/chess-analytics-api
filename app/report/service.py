@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import Game, Player, Report, ReportStatus
+from app.lichess.schemas import PlayerProfile
 
 #: Statuses a report can still move on from. Both terminal ones are final: a
 #: failed report is finished, not stuck, so the next request gets a new job.
@@ -33,13 +34,43 @@ def report_window(now: datetime | None = None) -> tuple[datetime, datetime]:
 def is_fresh(completed_at: datetime | None) -> bool:
     """Recent enough that rebuilding would re-scrape a year of games for nothing.
 
-    The same rule ``fresh_report`` applies in SQL, in a form the cache can use:
-    a cached entry outlives neither its own TTL nor this check, and which of the
-    two bites first is a tuning decision, not a correctness one.
+    Applied to ``completed_at`` in Python rather than filtered for in SQL, so
+    the POST and the read endpoints can share one cache entry -- the newest
+    finished report -- and differ only in what they then decide about its age.
     """
     if completed_at is None:
         return False
     return completed_at >= datetime.now(UTC) - timedelta(seconds=settings.report_fresh_ttl_s)
+
+
+def is_stale(completed_at: datetime | None) -> bool:
+    """Old enough to rebuild even if the player has not played since.
+
+    The counterpart to ``is_fresh``. Between the two ages the decision belongs
+    to ``has_new_games``, which is cheap but only sees games being played --
+    this is what eventually catches everything else that can change a report,
+    engine analysis on old games above all.
+    """
+    if completed_at is None:
+        return True
+    return completed_at < datetime.now(UTC) - timedelta(seconds=settings.report_stale_ttl_s)
+
+
+def has_new_games(player: Player, profile: PlayerProfile) -> bool:
+    """Whether Lichess is holding rated games we have not fetched.
+
+    Free: the profile it reads was already fetched to check the account exists,
+    so this costs no extra request. It is a "has anything changed" signal rather
+    than a count of what is missing -- the two numbers are not comparable, since
+    ours covers a 12-month window and Lichess's covers the whole account.
+
+    Unknown counts answer yes. A player we have never fetched, or a profile with
+    no count block, has to be treated as having something for us.
+    """
+    theirs = profile.counts.rated
+    if theirs is None or player.rated_games_count is None:
+        return True
+    return theirs != player.rated_games_count
 
 
 async def get_report(session: AsyncSession, report_id: uuid.UUID) -> Report | None:
@@ -49,26 +80,6 @@ async def get_report(session: AsyncSession, report_id: uuid.UUID) -> Report | No
 async def player_by_username(session: AsyncSession, username: str) -> Player | None:
     """Look a player up the way Lichess does: case-insensitively."""
     stmt = select(Player).where(Player.username_lower == username.lower())
-    return (await session.execute(stmt)).scalar_one_or_none()
-
-
-async def fresh_report(session: AsyncSession, player_id: int) -> Report | None:
-    """The player's most recent completed report, if it is still young enough.
-
-    The "don't re-scrape Lichess for a page refresh" rule. ``report.cache`` sits
-    in front of this; the database answer stays authoritative.
-    """
-    cutoff = datetime.now(UTC) - timedelta(seconds=settings.report_fresh_ttl_s)
-    stmt = (
-        select(Report)
-        .where(
-            Report.player_id == player_id,
-            Report.status == ReportStatus.DONE,
-            Report.completed_at >= cutoff,
-        )
-        .order_by(Report.completed_at.desc())
-        .limit(1)
-    )
     return (await session.execute(stmt)).scalar_one_or_none()
 
 

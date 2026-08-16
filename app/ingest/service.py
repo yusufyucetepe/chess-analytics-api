@@ -140,7 +140,13 @@ async def ingest_player(
     # Only now, once the export ran to completion, is the player's history
     # actually ours. A half-finished ingest must not look fresh to the caching
     # rules in step 7.
+    #
+    # The count is written here for the same reason, and deliberately not in
+    # `upsert_player`: that runs before the export, so storing it there would
+    # record games as fetched at the moment we learned they existed, and the
+    # next request would see nothing new however the export went.
     player.last_fetched_at = datetime.now(UTC)
+    player.rated_games_count = profile.counts.rated
     session.add(player)
     await session.commit()
     return player, stats

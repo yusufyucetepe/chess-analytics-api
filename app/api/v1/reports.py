@@ -74,10 +74,10 @@ async def request_report(
     profile = await _fetch_profile(lichess, body.username)
     player = await upsert_player(session, profile)
 
-    recent = await completed_report(session, redis, player, service.fresh_report)
-    if recent and service.is_fresh(recent.completed_at):
+    existing = await completed_report(session, redis, player, service.latest_completed)
+    if existing and _still_current(existing, player, profile):
         response.status_code = status.HTTP_200_OK
-        return recent
+        return existing
 
     report_id = uuid.uuid4()
     if in_flight := await _claim_or_join(session, redis, player, report_id):
@@ -160,6 +160,27 @@ async def player_openings(
         "period": {"start": since.isoformat(), "end": until.isoformat()},
         "openings": await openings.build(session, player.id, since=since, until=until),
     }
+
+
+def _still_current(view: ReportView, player: Player, profile: PlayerProfile) -> bool:
+    """Whether the report we already hold is worth serving instead of rebuilding.
+
+    Three bands, cheapest test first:
+
+    * younger than ``report_fresh_ttl_s`` -- served regardless. This is the
+      floor on how often one player can start an export, and nothing overrides
+      it, or a player mid-bullet-session would cause one on every refresh.
+    * older than ``report_stale_ttl_s`` -- rebuilt regardless, because the
+      count below cannot see analysis arriving on games we already have.
+    * in between -- rebuilt only if Lichess says they have played rated games
+      since our last fetch. That check is free: the profile it reads was
+      already fetched to confirm the account exists.
+    """
+    if service.is_fresh(view.completed_at):
+        return True
+    if service.is_stale(view.completed_at):
+        return False
+    return not service.has_new_games(player, profile)
 
 
 async def completed_report(

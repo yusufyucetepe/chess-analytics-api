@@ -345,6 +345,123 @@ async def test_the_openings_endpoint_404s_for_a_player_we_have_never_seen(
     assert resp.status_code == 404
 
 
+# ------------------------------------------------------ the game-count check
+
+#: What the recorded profile says the account has played. Storing this against
+#: the player is what "we have already fetched everything" looks like.
+FIXTURE_RATED_GAMES = 132896
+
+
+async def already_ingested(session: AsyncSession, count: int = FIXTURE_RATED_GAMES) -> Player:
+    """Put the player in the state a finished ingest leaves them in."""
+    player = await service.player_by_username(session, USERNAME)
+    assert player is not None
+    player.rated_games_count = count
+    await session.commit()
+    return player
+
+
+@respx.mock
+async def test_an_aged_report_is_still_served_when_nothing_new_was_played(
+    api: AsyncClient, session: AsyncSession, queue: Queue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The saving. Past the freshness window we would previously re-export the
+    whole year to arrive at exactly the report we already had."""
+    monkeypatch.setattr(settings, "report_fresh_ttl_s", 0)
+    mock_profile()
+    await finish(session, (await post(api)).json()["id"])
+    await already_ingested(session)
+
+    resp = await post(api)
+
+    assert resp.status_code == 200
+    assert len(queue.enqueued) == 1, "no export, because there is nothing to fetch"
+
+
+@respx.mock
+async def test_an_aged_report_is_rebuilt_once_they_play_again(
+    api: AsyncClient, session: AsyncSession, queue: Queue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "report_fresh_ttl_s", 0)
+    mock_profile()
+    await finish(session, (await post(api)).json()["id"])
+    await already_ingested(session, FIXTURE_RATED_GAMES - 3)
+
+    resp = await post(api)
+
+    assert resp.status_code == 202
+    assert len(queue.enqueued) == 2, "three games we have not seen is worth an export"
+
+
+@respx.mock
+async def test_the_count_never_overrides_the_freshness_floor(
+    api: AsyncClient, session: AsyncSession, queue: Queue
+) -> None:
+    """A player mid-session moves the count constantly. If that alone triggered
+    an export, every refresh during a bullet binge would start one."""
+    mock_profile()
+    await finish(session, (await post(api)).json()["id"])
+    await already_ingested(session, FIXTURE_RATED_GAMES - 500)
+
+    resp = await post(api)
+
+    assert resp.status_code == 200
+    assert len(queue.enqueued) == 1
+
+
+@respx.mock
+async def test_a_report_past_the_ceiling_is_rebuilt_even_with_nothing_new(
+    api: AsyncClient, session: AsyncSession, queue: Queue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The count only moves when games are *played*. Analysis arriving on games
+    we already hold is invisible to it, so the age ceiling is what catches it."""
+    monkeypatch.setattr(settings, "report_fresh_ttl_s", 0)
+    monkeypatch.setattr(settings, "report_stale_ttl_s", 0)
+    mock_profile()
+    await finish(session, (await post(api)).json()["id"])
+    await already_ingested(session)
+
+    resp = await post(api)
+
+    assert resp.status_code == 202
+    assert len(queue.enqueued) == 2
+
+
+@respx.mock
+async def test_a_player_we_have_never_fetched_is_never_skipped(
+    api: AsyncClient, session: AsyncSession, queue: Queue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A report can exist with the count still null -- a row from before this
+    column, or one built by a job that failed after writing the report."""
+    monkeypatch.setattr(settings, "report_fresh_ttl_s", 0)
+    mock_profile()
+    await finish(session, (await post(api)).json()["id"])
+
+    resp = await post(api)
+
+    assert resp.status_code == 202
+    assert len(queue.enqueued) == 2
+
+
+@respx.mock
+async def test_asking_costs_no_extra_call_to_lichess(
+    api: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole point of using this count: the profile was already fetched to
+    check the account exists, so the check is free."""
+    monkeypatch.setattr(settings, "report_fresh_ttl_s", 0)
+    route = respx.get(path=f"/api/user/{USERNAME}").mock(
+        return_value=httpx.Response(200, json=json.loads(load_fixture("user_profile.json")))
+    )
+    await finish(session, (await post(api)).json()["id"])
+    await already_ingested(session)
+    route.reset()
+
+    await post(api)
+
+    assert route.call_count == 1, "one profile call, the one we already made"
+
+
 # ------------------------------------------------------------- ingest lock
 
 

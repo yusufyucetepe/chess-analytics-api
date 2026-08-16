@@ -71,7 +71,15 @@ class Settings(BaseSettings):
     worker_retry_delay_s: int = 30
 
     # Caching / dedupe / limits
+    #: Below this age a report is served as is, whatever has happened since.
+    #: The floor on how often one player can cause an export.
     report_fresh_ttl_s: int = 24 * 3600
+    #: Above this age a report is rebuilt even when the player has played
+    #: nothing new. Between the two, the rated-game count decides. The ceiling
+    #: exists because the count only moves when games are *played*: a player who
+    #: goes back and analyses old games changes what the quality section would
+    #: say without changing the number we compare against.
+    report_stale_ttl_s: int = 7 * 24 * 3600
     report_cache_ttl_s: int = 3600
     ingest_lock_ttl_s: int = 1800
     #: Reports one address may ask to have built per hour. Zero disables it.

@@ -76,6 +76,10 @@ async def test_upsert_player_creates_the_row(session: AsyncSession, profile: Pla
     assert player.title == "GM"
     assert player.ratings["bullet"] > 0
     assert player.last_fetched_at is None, "we have not fetched any games yet"
+    # The profile carries the count, but recording it here would claim we had
+    # already fetched games we have not asked for yet -- and the next request
+    # would then see nothing new and skip the export forever.
+    assert player.rated_games_count is None, "the export has not run"
 
 
 async def test_upsert_player_refreshes_instead_of_duplicating(
@@ -220,3 +224,6 @@ async def test_ingest_player_walks_profile_then_games(session: AsyncSession) -> 
     # Set only now that the export ran to completion -- step 7's caching rules
     # will read this as "we have this player's year".
     assert player.last_fetched_at is not None
+    # And the count it was true at, which is what a later request compares the
+    # live profile against to decide whether re-exporting would find anything.
+    assert player.rated_games_count == 132896

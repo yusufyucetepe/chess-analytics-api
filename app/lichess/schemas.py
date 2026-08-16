@@ -63,6 +63,19 @@ class UserProfileDetail(BaseModel):
     flag: str | None = None
 
 
+class ProfileCounts(BaseModel):
+    """The ``count`` block: how many games the account has ever played.
+
+    Only ``rated`` is read. The export is rated-only, so it is the number that
+    moves when there is something new for us to fetch -- a week of casual games
+    changes ``all`` and nothing we would store.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    rated: int | None = None
+
+
 class PlayerProfile(BaseModel):
     """``GET /api/user/{username}``."""
 
@@ -76,6 +89,7 @@ class PlayerProfile(BaseModel):
     created_at: datetime | None = Field(default=None, alias="createdAt")
     perfs: dict[str, PerfStats] = Field(default_factory=dict)
     profile: UserProfileDetail = Field(default_factory=UserProfileDetail)
+    counts: ProfileCounts = Field(default_factory=ProfileCounts, alias="count")
 
     @field_validator("created_at", mode="before")
     @classmethod

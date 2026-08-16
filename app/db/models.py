@@ -80,6 +80,11 @@ class Player(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     #: When we last pulled this player's games from Lichess.
     last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Lichess's lifetime rated-game count as it stood at that fetch. Compared
+    #: against the live profile to tell whether a re-export would find anything,
+    #: so it is written only when an export finishes -- see ``ingest_player``.
+    #: Null for a player whose games we have never successfully fetched.
+    rated_games_count: Mapped[int | None] = mapped_column(Integer)
     #: Current ratings per perf type, straight from the Lichess profile.
     ratings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
 
