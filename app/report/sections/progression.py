@@ -4,6 +4,12 @@ Built from the games rather than from Lichess's rating-history endpoint. The
 games table already carries the rating before each game and the change it
 caused, which is the same curve sampled at every game instead of once a day,
 and it is scoped to the report's window without any further filtering.
+
+Provisional games are left out of all of it. Lichess starts an account at 1500
+-- or 1800 if you say you already play -- and marks the rating provisional until
+it has seen enough games to trust it. Those first ratings are a placeholder, not
+a measurement, and counting them makes a new player's year read as "started at
+1500, peaked at 1500" no matter how they actually played.
 """
 
 from datetime import datetime
@@ -31,6 +37,10 @@ async def build(
         "by_perf": by_perf,
         "main_perf": ranked[0][0] if ranked else None,
         "best_gain": max(by_perf.items(), key=lambda i: i[1]["net"])[0] if by_perf else None,
+        # Reported rather than silently dropped: for a new account this is the
+        # difference between an empty section and a broken one, and the page
+        # should be able to say which.
+        "provisional_games": await _provisional_games(session, player_id, since, until),
     }
 
 
@@ -68,6 +78,17 @@ def _first(value: Any, *order: Any) -> Any:
     return func.array_agg(aggregate_order_by(value, *order), type_=ARRAY(Integer))[1]
 
 
+async def _provisional_games(
+    session: AsyncSession, player_id: int, since: datetime, until: datetime
+) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(Game)
+        .where(*window(player_id, since, until), Game.provisional.is_(True))
+    )
+    return int((await session.execute(stmt)).scalar_one())
+
+
 async def _monthly(
     session: AsyncSession, player_id: int, since: datetime, until: datetime
 ) -> list[Any]:
@@ -96,7 +117,14 @@ async def _monthly(
             _first(Game.player_rating, *order).label("first_rating"),
             _first(after, Game.played_at.desc(), Game.game_id.desc()).label("last_rating"),
         )
-        .where(*window(player_id, since, until), Game.player_rating.is_not(None))
+        .where(
+            *window(player_id, since, until),
+            Game.player_rating.is_not(None),
+            # IS NOT TRUE, not `== False`: rows ingested before the column
+            # existed are NULL, and those behaved as settled before this filter
+            # arrived. A re-ingest replaces the NULL with the real answer.
+            Game.provisional.is_not(True),
+        )
         .group_by(Game.perf, month)
         .order_by(Game.perf, month)
     )

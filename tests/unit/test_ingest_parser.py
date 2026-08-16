@@ -108,6 +108,18 @@ def test_the_row_matches_the_games_table_exactly(games: dict[str, dict[str, Any]
     assert set(row(games[WHITE_WIN])) == {column.name for column in Game.__table__.columns}
 
 
+def test_a_provisional_rating_is_recorded_as_one(games: dict[str, dict[str, Any]]) -> None:
+    """Lichess sends the key only while the rating is unsettled, so its absence
+    is the settled answer rather than missing data -- and both are booleans, or
+    every row would read as "unknown" to the progression filter."""
+    raw = games[WHITE_WIN]
+    assert row(raw)["provisional"] is True
+
+    settled = copy.deepcopy(raw)
+    settled["players"]["white"].pop("provisional")
+    assert row(settled)["provisional"] is False
+
+
 def test_accuracy_is_a_decimal(games: dict[str, dict[str, Any]]) -> None:
     """The column is NUMERIC, and asyncpg refuses a float for one."""
     assert isinstance(row(games[WHITE_WIN])["accuracy"], Decimal)

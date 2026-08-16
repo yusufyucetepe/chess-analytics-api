@@ -23,29 +23,18 @@ WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 async def build(
     session: AsyncSession, player_id: int, *, since: datetime, until: datetime
 ) -> dict[str, Any]:
-    """Hour and weekday distributions, the longest session, and a tilt signal."""
-    by_hour = await _by_hour(session, player_id, since, until)
-    by_weekday = await _by_weekday(session, player_id, since, until)
-    played = [slot for slot in by_hour if slot["games"]]
+    """Which days the player plays, the longest session, and a tilt signal.
+
+    Deliberately no hour-of-day breakdown: without the player's timezone every
+    hour we could report would be a UTC hour dressed up as a habit. The day is
+    the finest bucket that survives not knowing where somebody lives.
+    """
     return {
         "timezone": TIMEZONE,
-        "by_hour": by_hour,
-        "by_weekday": by_weekday,
-        "peak_hour": max(played, key=lambda slot: slot["games"])["hour"] if played else None,
+        "by_weekday": await _by_weekday(session, player_id, since, until),
         "longest_session": await _longest_session(session, player_id, since, until),
         "tilt": await _tilt(session, player_id, since, until),
     }
-
-
-async def _by_hour(
-    session: AsyncSession, player_id: int, since: datetime, until: datetime
-) -> list[dict[str, Any]]:
-    hour = cast(func.extract("hour", Game.played_at), Integer).label("bucket")
-    rows = await _distribution(session, player_id, since, until, hour)
-    found = {row.bucket: row for row in rows}
-    # Every hour is present even when empty: a chart with holes in it is worse
-    # than one with zeroes, and the frontend should not have to fill them.
-    return [_slot({"hour": h}, found.get(h)) for h in range(24)]
 
 
 async def _by_weekday(

@@ -28,6 +28,16 @@ services:
   worker:
     environment:
       DEBUG: "true"
+      # Without this the mount below does nothing. `arq` is a console script, so
+      # sys.path[0] is the venv's bin directory rather than the working
+      # directory, and `import app` finds the copy the image pip-installed into
+      # site-packages -- which never changes. uvicorn puts the working directory
+      # first itself, which is why only the worker needs telling.
+      PYTHONPATH: /app
     volumes:
       - ./app:/app/app
-    command: ["arq", "app.worker.WorkerSettings", "--watch", "app"]
+    # `watchfiles` rather than `arq --watch`: arq's own watcher restarts the
+    # worker loop inside the same interpreter, so anything already in
+    # sys.modules keeps the code it was imported with and an edit appears to
+    # reload while changing nothing. This one replaces the process.
+    command: ["watchfiles", "arq app.worker.WorkerSettings", "/app/app"]

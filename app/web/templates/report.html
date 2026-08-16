@@ -5,7 +5,6 @@
 {% set type = sections.player_type %}
 {% set openings = sections.openings %}
 {% set quality = sections.quality %}
-{% set timing = sections.time_behaviour %}
 {% set progression = sections.progression %}
 
 {% block title %}{{ player.username }}'s chess year &ndash; Chess Wrapped{% endblock %}
@@ -25,7 +24,6 @@
         {{ headline.hours_played|commas }} hours at the board across
         {{ headline.days_played|commas }} days.
       </p>
-      {% include "partials/wdl.html" %}
     {% else %}
       <p class="lede">No rated games in this window.</p>
     {% endif %}
@@ -40,7 +38,6 @@
   {% include "partials/player_type.html" %}
   {% include "partials/headline.html" %}
   {% include "partials/openings.html" %}
-  {% include "partials/timing.html" %}
   {% include "partials/quality.html" %}
   {% include "partials/progression.html" %}
 
@@ -60,6 +57,6 @@
    interpolated into JavaScript source -- see `json_data` for why that matters
    when a player's name comes from somewhere other than us. #}
 <script id="chart-data" type="application/json">{{ chart_data|json_data }}</script>
-<script src="/static/chart.umd.min.js"></script>
-<script src="/static/charts.js"></script>
+<script src="/static/chart.umd.min.js?v={{ asset_v }}"></script>
+<script src="/static/charts.js?v={{ asset_v }}"></script>
 {% endblock %}

@@ -1,6 +1,8 @@
 <section class="card">
   <h2>The year in numbers</h2>
 
+  {% include "partials/wdl.html" %}
+
   <div class="tiles">
     <div class="tile"><b>{{ headline.games|commas }}</b><span>rated games</span></div>
     <div class="tile"><b>{{ headline.hours_played|commas }}</b><span>hours played</span></div>

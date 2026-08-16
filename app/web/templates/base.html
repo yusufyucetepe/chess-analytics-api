@@ -4,11 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Chess Wrapped{% endblock %}</title>
-  <link rel="stylesheet" href="/static/app.css">
+  {# ?v= on every static URL: see `asset_version`. Without it an edited
+     stylesheet or chart script reaches nobody who has already loaded the page. #}
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#9822;</text></svg>">
   {# Both vendored. The brief asks for one deployable, and a CDN would make the
      page depend on a host we do not run and cannot keep up. #}
-  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx.min.js?v={{ asset_v }}" defer></script>
   {% block head %}{% endblock %}
 </head>
 <body>

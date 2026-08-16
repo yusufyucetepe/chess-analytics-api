@@ -1,14 +1,19 @@
 {# Win/draw/loss as one bar. Widths come from the counts, so the bar is the
-   record rather than a picture of it. #}
+   record rather than a picture of it. The numbers sit above it rather than
+   inside the segments: a segment is only as wide as its share, so a thin one
+   either clips its own label or squeezes the bar out of shape. #}
+<p class="wdl-key">
+  <span><i class="swatch swatch--win"></i><b>{{ headline.wins|commas }}</b> won
+    <span class="share">{{ (headline.wins / headline.games)|percent(0) }}</span></span>
+  <span><i class="swatch swatch--draw"></i><b>{{ headline.draws|commas }}</b> drawn
+    <span class="share">{{ (headline.draws / headline.games)|percent(0) }}</span></span>
+  <span><i class="swatch swatch--loss"></i><b>{{ headline.losses|commas }}</b> lost
+    <span class="share">{{ (headline.losses / headline.games)|percent(0) }}</span></span>
+  <span class="score">{{ headline.win_rate|percent }} win rate &middot; scoring {{ headline.score|percent }}</span>
+</p>
 <div class="wdl" role="img"
      aria-label="{{ headline.wins }} wins, {{ headline.draws }} draws, {{ headline.losses }} losses">
   <span class="wdl-win"  style="flex-grow: {{ headline.wins }}"></span>
   <span class="wdl-draw" style="flex-grow: {{ headline.draws }}"></span>
   <span class="wdl-loss" style="flex-grow: {{ headline.losses }}"></span>
 </div>
-<p class="wdl-key">
-  <span><b>{{ headline.wins|commas }}</b> won</span>
-  <span><b>{{ headline.draws|commas }}</b> drawn</span>
-  <span><b>{{ headline.losses|commas }}</b> lost</span>
-  <span class="score">{{ headline.win_rate|percent }} win rate &middot; scoring {{ headline.score|percent }}</span>
-</p>

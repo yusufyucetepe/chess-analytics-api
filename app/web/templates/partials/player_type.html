@@ -22,16 +22,16 @@
   {% endif %}
 
   {% if type.scores.positional is not none %}
-    <div class="axes" role="img"
+    {# The canvas carries no text, so the numbers live in the key below it and
+       in the label here -- the chart is the decoration, not the content. #}
+    <div class="chart chart--donut" role="img"
          aria-label="positional {{ type.scores.positional }}, aggressive {{ type.scores.aggressive }}, tactical {{ type.scores.tactical }} out of 100">
-      <span class="axis-positional" style="flex-grow: {{ type.scores.positional }}">{{ type.scores.positional }}</span>
-      <span class="axis-aggressive" style="flex-grow: {{ type.scores.aggressive }}">{{ type.scores.aggressive }}</span>
-      <span class="axis-tactical"   style="flex-grow: {{ type.scores.tactical }}">{{ type.scores.tactical }}</span>
+      <canvas id="chart-player-type"></canvas>
     </div>
     <p class="axes-key">
-      <span class="key-positional">positional</span>
-      <span class="key-aggressive">aggressive</span>
-      <span class="key-tactical">tactical</span>
+      <span class="key-positional"><b>{{ type.scores.positional }}</b> positional</span>
+      <span class="key-aggressive"><b>{{ type.scores.aggressive }}</b> aggressive</span>
+      <span class="key-tactical"><b>{{ type.scores.tactical }}</b> tactical</span>
     </p>
   {% endif %}
 

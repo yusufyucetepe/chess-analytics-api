@@ -18,6 +18,19 @@ from markupsafe import Markup
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+
+def asset_version() -> str:
+    """A token that changes whenever a static file does.
+
+    Appended to every ``/static`` URL. Without it a browser keeps the stylesheet
+    and the chart script it already has, and an edit to either shows up as a
+    page that is half old and half new -- a stale ``charts.js`` reading a key the
+    server no longer sends is an exception that stops *every* chart drawing.
+    """
+    stamps = (path.stat().st_mtime_ns for path in STATIC_DIR.glob("*") if path.is_file())
+    return f"{max(stamps, default=0):x}"[-10:]
+
+
 #: The characters that could end a ``<script>`` element early, or that a JS
 #: parser treats as a line break where JSON does not. See ``json_data``.
 _SCRIPT_ESCAPES = {
@@ -79,18 +92,6 @@ def clock(value: str | None) -> str:
     return "--" if moment is None else f"{moment.day} {moment:%b}, {moment:%H:%M}"
 
 
-def hour_label(value: Any) -> str:
-    return "--" if value is None else f"{int(value):02d}:00"
-
-
-def duration(minutes: Any) -> str:
-    """Minutes as "2h 38m" -- a 158-minute session does not read as a number."""
-    if minutes is None:
-        return "--"
-    hours, rest = divmod(round(float(minutes)), 60)
-    return f"{hours}h {rest:02d}m" if hours else f"{rest}m"
-
-
 def _parse(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -111,10 +112,11 @@ def build_templates() -> Jinja2Templates:
             "signed": signed,
             "day": day,
             "clock": clock,
-            "hour_label": hour_label,
-            "duration": duration,
         }
     )
+    # Read once: the token only has to change between deploys, and in dev the
+    # reloader rebuilds this module whenever the files it measures change.
+    templates.env.globals["asset_v"] = asset_version()
     # An undefined name in a template is a bug in the template, and rendering it
     # as an empty string is how that would reach production unnoticed.
     templates.env.undefined = StrictUndefined

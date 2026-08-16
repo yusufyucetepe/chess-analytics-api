@@ -35,6 +35,17 @@
     <p class="fine">
       Taken from the rating carried into each game, so the curve is sampled at
       every game rather than once a day, and averaged by month.
+      {%- if progression.get('provisional_games') %}
+        Leaves out {{ progression.provisional_games|commas }} games played on a
+        provisional rating &mdash; Lichess starts everyone at a placeholder and
+        those numbers are not yet yours.
+      {%- endif %}
+    </p>
+  {% elif progression.get('provisional_games') %}
+    <p>
+      Your rating was still provisional for all
+      {{ progression.provisional_games|commas }} rated games in this window, so
+      there is no settled rating to chart yet.
     </p>
   {% else %}
     <p>No rated games with a rating attached in this window.</p>

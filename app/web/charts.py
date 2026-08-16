@@ -8,31 +8,31 @@ embedding the lot would put tens of kilobytes into the HTML to draw three lines.
 
 from typing import Any
 
-#: One entry per hour, so the bar chart has no holes. The section already fills
-#: them; this is only the labels.
-HOUR_LABELS = [f"{hour:02d}" for hour in range(24)]
+#: The order the donut's slices are drawn in, and the order the key beside it
+#: lists them. Matches ``player_type_weights.AXES``, spelled out here so the
+#: chart layer does not import the classifier for three strings.
+AXES = ("positional", "aggressive", "tactical")
 
 
 def chart_data(sections: dict[str, Any]) -> dict[str, Any]:
     """Everything ``static/charts.js`` draws, keyed by canvas."""
     return {
-        "hours": _hours(sections.get("time_behaviour")),
+        "player_type": _player_type(sections.get("player_type")),
         "rating": _rating(sections.get("progression")),
     }
 
 
-def _hours(timing: dict[str, Any] | None) -> dict[str, Any]:
-    by_hour = (timing or {}).get("by_hour") or []
-    return {
-        "labels": HOUR_LABELS,
-        "games": [slot["games"] for slot in by_hour],
-        # Win rate is drawn on its own axis, and an hour with no games has no
-        # win rate -- `None` becomes `null`, which Chart.js leaves as a gap
-        # rather than plotting as a zero.
-        "win_rate": [
-            round(slot["win_rate"] * 100, 1) if slot["games"] else None for slot in by_hour
-        ],
-    }
+def _player_type(player_type: dict[str, Any] | None) -> dict[str, Any]:
+    """The three scores, or nothing at all.
+
+    ``scores`` is three nulls when no signal had anything to say, which is not
+    the same as an even split -- so it draws no chart rather than a third each.
+    """
+    scores = (player_type or {}).get("scores") or {}
+    values = [scores.get(axis) for axis in AXES]
+    if any(value is None for value in values):
+        return {"labels": [], "values": []}
+    return {"labels": list(AXES), "values": values}
 
 
 def _rating(progression: dict[str, Any] | None) -> dict[str, Any]:

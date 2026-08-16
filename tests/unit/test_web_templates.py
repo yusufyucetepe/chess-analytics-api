@@ -8,7 +8,6 @@ the test.
 """
 
 import json
-import re
 from typing import Any
 
 import pytest
@@ -85,7 +84,6 @@ def test_a_busy_year_shows_the_numbers_that_earned_it(request_: Request) -> None
     assert "Offbeat Strategist" in html
     assert "12,844" in html, "moves, with separators"
     assert "59.5" in html, "hours played"
-    assert "2h 38m" in html, "the longest session, not '157.9'"
     assert "+101" in html, "the rating gap on the best win, signed"
     assert "https://lichess.org/abcd1234" in html
 
@@ -98,7 +96,6 @@ def test_a_thin_year_says_so_instead_of_inventing_numbers(request_: Request) -> 
     assert "too few to say anything honest" in html
     assert "Best win" not in html
     assert "Longest win streak" not in html
-    assert "After two losses" not in html
 
 
 def test_a_year_with_no_games_stops_after_the_header(request_: Request) -> None:
@@ -147,12 +144,30 @@ def test_a_report_built_before_shades_existed_still_renders(request_: Request) -
     assert "Offbeat Strategist" in html
 
 
-def test_the_repertoire_tree_nests(request_: Request) -> None:
-    """A line with a continuation is a <details>, so it folds without JavaScript."""
+def test_the_page_leaves_the_repertoire_tree_alone(request_: Request) -> None:
+    """The section is gone from the page but not from the payload -- rendering
+    it was what made the openings card unreadable."""
     html = render_report(request_, full_payload())
 
-    assert "<details" in html
-    assert re.search(r"<summary>.*?e4.*?</summary>", html, re.S)
+    assert "Repertoire" not in html
+    assert "<details" not in html
+
+
+def test_the_page_no_longer_says_when_you_play(request_: Request) -> None:
+    html = render_report(request_, full_payload())
+
+    assert "When you play" not in html
+    assert "Longest session" not in html
+    assert "chart-hours" not in html
+
+
+def test_the_player_type_donut_gets_its_canvas(request_: Request) -> None:
+    html = render_report(request_, full_payload())
+
+    assert 'id="chart-player-type"' in html
+    # The numbers are text beside the canvas, not pixels inside it.
+    assert "positional" in html
+    assert "46" in html
 
 
 @pytest.mark.parametrize(
@@ -245,17 +260,9 @@ def test_signed(value: Any, expected: str) -> None:
     assert templating.signed(value) == expected
 
 
-@pytest.mark.parametrize(
-    ("minutes", "expected"), [(157.9, "2h 38m"), (45, "45m"), (0, "0m"), (None, "--")]
-)
-def test_duration(minutes: Any, expected: str) -> None:
-    assert templating.duration(minutes) == expected
-
-
 def test_dates_read_as_dates() -> None:
     assert templating.day("2026-03-03T19:40:00+00:00") == "3 Mar 2026"
     assert templating.clock("2026-03-03T19:40:00+00:00") == "3 Mar, 19:40"
-    assert templating.hour_label(7) == "07:00"
 
 
 @pytest.mark.parametrize("junk", [None, "", "not a date"])

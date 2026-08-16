@@ -12,9 +12,12 @@
   --rule: #e7e5e4;
   --accent: #2563eb;
 
-  --win: #059669;
-  --draw: #a8a29e;
-  --loss: #dc2626;
+  /* Deep enough to hold white text and to read as three solid blocks rather
+     than a pastel strip. The draw grey in particular was lighter than the card
+     it sits on. */
+  --win: #047857;
+  --draw: #57534e;
+  --loss: #b91c1c;
 
   --positional: #0891b2;
   --aggressive: #dc2626;
@@ -171,24 +174,33 @@ button:disabled { opacity: .55; cursor: progress; }
 .archetype--shy { color: var(--muted); font-weight: 600; }
 .signature { max-width: 40rem; margin: 1rem auto; }
 
-.wdl, .axes { display: flex; height: 1.5rem; border-radius: 999px; overflow: hidden; margin: 1.25rem 0 .5rem; }
-.wdl span { display: block; }
+.wdl {
+  display: flex; height: 1.75rem;
+  border-radius: 6px; overflow: hidden;
+  margin: .5rem 0 0;
+}
+.wdl span { display: block; min-width: 2px; }
 .wdl-win { background: var(--win); }
 .wdl-draw { background: var(--draw); }
 .wdl-loss { background: var(--loss); }
-.wdl-key { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .9rem; color: var(--muted); margin: 0; }
-.wdl-key .score { margin-left: auto; }
 
-.axes { height: 2rem; }
-.axes span {
-  display: grid; place-items: center;
-  color: #fff; font-size: .8rem; font-weight: 700;
-  min-width: 0; overflow: hidden;
+.wdl-key {
+  display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: baseline;
+  font-size: .9rem; color: var(--muted); margin: 1.25rem 0 0;
 }
-.axis-positional { background: var(--positional); }
-.axis-aggressive { background: var(--aggressive); }
-.axis-tactical { background: var(--tactical); }
-.axes-key { display: flex; gap: 1.25rem; justify-content: center; font-size: .8rem; margin: 0 0 1rem; }
+.wdl-key b { color: var(--ink); font-size: 1.05rem; }
+.wdl-key .share { font-variant-numeric: tabular-nums; }
+.wdl-key .score { margin-left: auto; }
+.swatch {
+  display: inline-block; width: .65rem; height: .65rem;
+  border-radius: 3px; margin-right: .4rem;
+}
+.swatch--win { background: var(--win); }
+.swatch--draw { background: var(--draw); }
+.swatch--loss { background: var(--loss); }
+
+.axes-key { display: flex; gap: 1.25rem; justify-content: center; flex-wrap: wrap; font-size: .85rem; margin: 0 0 1rem; }
+.axes-key b { font-size: 1.05rem; }
 .key-positional { color: var(--positional); }
 .key-aggressive { color: var(--aggressive); }
 .key-tactical { color: var(--tactical); }
@@ -223,23 +235,7 @@ table.grid thead th { color: var(--muted); font-size: .75rem; text-transform: up
 .down { color: var(--loss); font-weight: 600; }
 
 .chart { position: relative; margin: 1.25rem 0; }
+/* A donut has nothing to gain from the full card width -- past this it just
+   grows a hole. */
+.chart--donut { max-width: 20rem; margin-inline: auto; }
 
-/* The repertoire tree: <details> for anything with a continuation, so it opens
-   and closes without a line of JavaScript. */
-.tree { list-style: none; margin: 0; padding: 0; }
-.tree--1, .tree--2, .tree--3, .tree--4, .tree--5, .tree--6, .tree--7 {
-  padding-left: 1rem;
-  border-left: 1px solid var(--rule);
-  margin-left: .35rem;
-}
-.tree li { margin: .1rem 0; }
-.tree summary, .tree .leaf {
-  display: flex; gap: .5rem; align-items: baseline;
-  padding: .15rem .4rem; border-radius: 6px;
-  font-size: .9rem; cursor: pointer;
-}
-.tree .leaf { cursor: default; }
-.tree summary:hover { background: var(--page); }
-.tree .san { font-family: var(--mono); font-weight: 600; min-width: 3.5rem; }
-.tree-count { color: var(--muted); font-size: .82rem; }
-.tree-score { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }

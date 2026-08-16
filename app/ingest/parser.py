@@ -75,6 +75,9 @@ def parse_game(
         "opponent_rating": opponent.get("rating"),
         "player_rating": me.get("rating"),
         "rating_diff": me.get("ratingDiff"),
+        # Lichess sends the key only when the rating *was* provisional, so its
+        # absence is the settled case rather than missing data.
+        "provisional": bool(me.get("provisional")),
         "result": _result_for(raw.get("winner"), color),
         "status": raw.get("status") or "unknown",
         "eco": opening.get("eco"),

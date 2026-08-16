@@ -264,7 +264,7 @@ async def test_quality_buckets_by_week_and_by_month(session: AsyncSession, playe
 # --- time behaviour ---------------------------------------------------------
 
 
-async def test_every_hour_and_weekday_is_present_even_when_unplayed(
+async def test_every_weekday_is_present_even_when_unplayed(
     session: AsyncSession, player: Player
 ) -> None:
     """Charts should not have to cope with holes in their own axis."""
@@ -272,11 +272,19 @@ async def test_every_hour_and_weekday_is_present_even_when_unplayed(
 
     section = await time_section.build(session, player.id, since=SINCE, until=UNTIL)
 
-    assert len(section["by_hour"]) == 24
     assert len(section["by_weekday"]) == 7
-    assert section["peak_hour"] == BASE.hour
     assert section["by_weekday"][BASE.isoweekday() - 1]["games"] == 2
-    assert sum(slot["games"] for slot in section["by_hour"]) == 2
+    assert sum(slot["games"] for slot in section["by_weekday"]) == 2
+
+
+async def test_the_hour_of_day_is_not_reported(session: AsyncSession, player: Player) -> None:
+    """We do not know the player's timezone, so a UTC hour is not a habit."""
+    await seed(session, player, results("W", "L"))
+
+    section = await time_section.build(session, player.id, since=SINCE, until=UNTIL)
+
+    assert "by_hour" not in section
+    assert "peak_hour" not in section
 
 
 async def test_the_longest_session_ends_at_the_first_long_gap(
@@ -369,6 +377,73 @@ async def test_a_player_who_only_ever_lost_peaks_where_they_started(
     assert perf["blitz"]["peak"] == 1500, "never above where they came in"
     assert perf["blitz"]["low"] == 1302
     assert perf["blitz"]["net"] == -198
+
+
+async def test_the_provisional_games_do_not_set_the_starting_rating(
+    session: AsyncSession, player: Player
+) -> None:
+    """The point of the whole thing: 1500 is what Lichess hands out, not a rating.
+
+    Start, peak and low all have to come from the first settled game, or a
+    player who climbed out of the placeholder reads as having started there.
+    """
+    await seed(
+        session,
+        player,
+        [
+            {"player_rating": 1500, "rating_diff": 90, "provisional": True},
+            {"player_rating": 1590, "rating_diff": 110, "provisional": True},
+            {"player_rating": 1700, "rating_diff": 20},
+            {"player_rating": 1720, "rating_diff": 30},
+        ],
+    )
+
+    section = await progression.build(session, player.id, since=SINCE, until=UNTIL)
+
+    assert section["by_perf"]["blitz"]["start"] == 1700
+    assert section["by_perf"]["blitz"]["low"] == 1700, "not the provisional 1500"
+    assert section["by_perf"]["blitz"]["end"] == 1750
+    assert section["by_perf"]["blitz"]["games"] == 2
+    assert section["provisional_games"] == 2
+
+
+async def test_a_year_that_never_left_provisional_charts_nothing(
+    session: AsyncSession, player: Player
+) -> None:
+    """An empty section the page can explain, rather than a placeholder curve."""
+    await seed(
+        session,
+        player,
+        [
+            {"player_rating": 1500, "rating_diff": 40, "provisional": True},
+            {"player_rating": 1540, "rating_diff": -20, "provisional": True},
+        ],
+    )
+
+    section = await progression.build(session, player.id, since=SINCE, until=UNTIL)
+
+    assert section["by_perf"] == {}
+    assert section["main_perf"] is None
+    assert section["provisional_games"] == 2
+
+
+async def test_games_ingested_before_the_flag_existed_still_count(
+    session: AsyncSession, player: Player
+) -> None:
+    """NULL is "we never asked", and those rows charted fine before this filter."""
+    await seed(
+        session,
+        player,
+        [
+            {"player_rating": 2000, "rating_diff": 10, "provisional": None},
+            {"player_rating": 2010, "rating_diff": 10, "provisional": None},
+        ],
+    )
+
+    section = await progression.build(session, player.id, since=SINCE, until=UNTIL)
+
+    assert section["by_perf"]["blitz"]["start"] == 2000
+    assert section["provisional_games"] == 0
 
 
 async def test_progression_keeps_the_perfs_apart(session: AsyncSession, player: Player) -> None:
@@ -465,5 +540,5 @@ async def test_the_time_section_survives_a_window_with_no_games(
 
     assert section["longest_session"] is None
     assert section["tilt"] is None
-    assert section["peak_hour"] is None
-    assert len(section["by_hour"]) == 24
+    assert len(section["by_weekday"]) == 7
+    assert all(slot["games"] == 0 for slot in section["by_weekday"])

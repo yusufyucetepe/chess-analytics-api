@@ -225,17 +225,6 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
             },
             "time_behaviour": {
                 "timezone": "UTC",
-                "by_hour": [
-                    {
-                        "hour": hour,
-                        "games": (hour * 3) % 40,
-                        "wins": (hour * 2) % 25,
-                        "draws": 0,
-                        "losses": hour % 12,
-                        "win_rate": 0.5 + (hour % 5) / 100,
-                    }
-                    for hour in range(24)
-                ],
                 "by_weekday": [
                     {
                         "weekday": day,
@@ -259,7 +248,6 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
                         start=1,
                     )
                 ],
-                "peak_hour": 19,
                 "longest_session": {
                     "games": 90,
                     "start": "2026-01-04T10:00:00+00:00",
@@ -323,6 +311,7 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
                 },
                 "main_perf": "bullet",
                 "best_gain": "blitz",
+                "provisional_games": 0,
             },
             "player_type": {
                 "label": "Offbeat Strategist",
@@ -399,7 +388,7 @@ def sparse_payload() -> dict[str, Any]:
         "by_month": [],
         "by_week": [],
     }
-    sections["time_behaviour"] |= {"peak_hour": None, "longest_session": None, "tilt": None}
+    sections["time_behaviour"] |= {"longest_session": None, "tilt": None}
     sections["openings"] |= {
         "distinct_ecos": 2,
         "best": None,
@@ -410,7 +399,12 @@ def sparse_payload() -> dict[str, Any]:
         },
         "tree": {"plies": 8, "min_games": 2, "white": [], "black": []},
     }
-    sections["progression"] = {"by_perf": {}, "main_perf": None, "best_gain": None}
+    sections["progression"] = {
+        "by_perf": {},
+        "main_perf": None,
+        "best_gain": None,
+        "provisional_games": 0,
+    }
     sections["player_type"] |= {
         "label": None,
         "confident": False,

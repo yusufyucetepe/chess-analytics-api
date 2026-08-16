@@ -119,6 +119,11 @@ class Game(Base):
     opponent_rating: Mapped[int | None] = mapped_column(Integer)
     player_rating: Mapped[int | None] = mapped_column(Integer)
     rating_diff: Mapped[int | None] = mapped_column(Integer)
+    #: Lichess's own flag for "this rating is not settled yet" -- it sets it
+    #: while the rating deviation is high, which covers a new account starting
+    #: from 1500 and an old one coming back after a long break. NULL means the
+    #: row predates this column, not that the rating was settled.
+    provisional: Mapped[bool | None] = mapped_column(Boolean)
 
     result: Mapped[Result] = mapped_column(pg_enum(Result, "result"))
     #: Lichess termination: mate, resign, outoftime, draw, stalemate, ...
