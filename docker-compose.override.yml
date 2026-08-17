@@ -20,10 +20,16 @@ services:
       - ./alembic:/app/alembic
     ports:
       - "8000:8000"
+    # The reloader watches *.py only by default, and the `?v=` cache token on the
+    # static URLs is read once at import -- so a CSS or JS edit alone would be
+    # served under the old token and the browser would keep what it has.
     command:
       - sh
       - -c
-      - "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      - >-
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+        --reload-include '*.css' --reload-include '*.js'
 
   worker:
     environment:

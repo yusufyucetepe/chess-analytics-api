@@ -19,9 +19,27 @@
   --draw: #57534e;
   --loss: #b91c1c;
 
-  --positional: #0891b2;
+  /* The donut slices. A yellow bright enough to read as yellow at that size is
+     too pale to read as text on the card, so each axis carries a second, darker
+     token for its label in the key. charts.js reads the fills by name. */
+  --positional: #1a75d2;
   --aggressive: #dc2626;
-  --tactical: #7c3aed;
+  --tactical: #eab308;
+
+  /* The repertoire bar, darkest segment first. A ramp rather than a set of
+     hues, so the steps stay ordered and legible under any colour vision; the
+     tail is grey because "everything else" is not a system. */
+  --seg-1: #0b3f7a;
+  --seg-2: #14559f;
+  --seg-3: #1a75d2;
+  --seg-4: #4a94de;
+  --seg-5: #7db0e6;
+  --seg-6: #a9cdf0;
+  --seg-rest: #d6d3d1;
+
+  --positional-ink: #155fa8;
+  --aggressive-ink: #b91c1c;
+  --tactical-ink: #a16207;
 
   --radius: 12px;
   --shadow: 0 1px 2px rgb(28 25 23 / 6%), 0 8px 24px rgb(28 25 23 / 4%);
@@ -36,6 +54,24 @@
     --rule: #292524;
     --accent: #60a5fa;
     --shadow: none;
+
+    /* Only the label inks move: the slices sit on their own border, not on the
+       card, so they read the same either way. */
+    /* Its own steps, but the same direction as the light ramp: deep blue is the
+       system played most, in either theme. Contrast against the card is lowest
+       at the deep end and that is the end that is always widest, so it never
+       comes down to picking out a sliver. */
+    --seg-1: #1d4ed8;
+    --seg-2: #2563eb;
+    --seg-3: #3b82f6;
+    --seg-4: #60a5fa;
+    --seg-5: #93c5fd;
+    --seg-6: #bfdbfe;
+    --seg-rest: #44403c;
+
+    --positional-ink: #7cc4f8;
+    --aggressive-ink: #f87171;
+    --tactical-ink: #facc15;
   }
 }
 
@@ -201,9 +237,9 @@ button:disabled { opacity: .55; cursor: progress; }
 
 .axes-key { display: flex; gap: 1.25rem; justify-content: center; flex-wrap: wrap; font-size: .85rem; margin: 0 0 1rem; }
 .axes-key b { font-size: 1.05rem; }
-.key-positional { color: var(--positional); }
-.key-aggressive { color: var(--aggressive); }
-.key-tactical { color: var(--tactical); }
+.key-positional { color: var(--positional-ink); }
+.key-aggressive { color: var(--aggressive-ink); }
+.key-tactical { color: var(--tactical-ink); }
 
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: .75rem; margin: 1.25rem 0; }
 .tile { background: var(--page); border-radius: var(--radius); padding: 1rem; text-align: center; }
@@ -230,9 +266,83 @@ table.grid { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 
 table.grid th, table.grid td { padding: .5rem .6rem; text-align: right; border-bottom: 1px solid var(--rule); }
 table.grid th[scope="row"] { text-align: left; font-weight: 500; }
 table.grid thead th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+/* The numbers are right-aligned, but the first column holds names and moves --
+   its heading belongs over the start of them, not over their far end. */
+table.grid thead th:first-child { text-align: left; }
 .eco { font-family: var(--mono); font-size: .85em; color: var(--muted); }
 .up { color: var(--win); font-weight: 600; }
 .down { color: var(--loss); font-weight: 600; }
+
+/* The repertoire: a concentration bar, its key, and one card per system.
+
+   The segments are a single-hue ramp ordered by size rather than six hues with
+   six meanings. Six categorical fills cannot be told apart under deuteranopia at
+   this width, and identity here comes from the key and the cards, which are in
+   the same order. The gap between segments is the card showing through. */
+.stack {
+  display: flex; gap: 2px; height: 1.75rem;
+  margin: .5rem 0 0;
+}
+/* The ends are rounded per segment rather than by clipping the row: the hover
+   label has to be able to leave the bar. */
+.stack > span { display: block; min-width: 2px; position: relative; }
+.stack > span:first-child { border-radius: 6px 0 0 6px; }
+.stack > span:last-child { border-radius: 0 6px 6px 0; }
+
+.stack .tip {
+  position: absolute; bottom: calc(100% + .5rem); left: 50%; transform: translateX(-50%);
+  display: none; z-index: 2;
+  background: var(--ink); color: var(--card);
+  font-size: .8rem; font-weight: 500; white-space: nowrap;
+  padding: .35rem .6rem; border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(28 25 23 / 25%);
+  pointer-events: none;
+}
+/* A segment at either end would push its label off the card. */
+.stack > span:first-child .tip { left: 0; transform: none; }
+.stack > span:last-child .tip { left: auto; right: 0; transform: none; }
+.stack > span:hover .tip { display: block; }
+
+.seg--1 { background: var(--seg-1); }
+.seg--2 { background: var(--seg-2); }
+.seg--3 { background: var(--seg-3); }
+.seg--4 { background: var(--seg-4); }
+.seg--5 { background: var(--seg-5); }
+.seg--6 { background: var(--seg-6); }
+.seg--rest { background: var(--seg-rest); }
+
+.stack-key {
+  list-style: none; padding: 0; margin: 1rem 0 0;
+  display: flex; flex-wrap: wrap; gap: .4rem 1.25rem;
+  font-size: .9rem; color: var(--muted);
+}
+.stack-key li { display: flex; align-items: center; gap: .1rem; }
+.stack-key .share { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; margin-left: .4rem; }
+
+/* A rule across the card, so one long section still reads as parts. */
+.subhead {
+  margin: 2.25rem 0 1rem; padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+  font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.columns h4 { margin: 0 0 .25rem; font-size: 1rem; }
+
+.systems { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin-top: 1.75rem; }
+.system { background: var(--page); border-radius: var(--radius); padding: 1rem 1.1rem; }
+.system h3 { margin: 0; font-size: 1.05rem; }
+.system .fine { margin: 0 0 .5rem; }
+.system-record { margin: 0; font-size: .9rem; color: var(--muted); }
+.system-record b { color: var(--ink); font-size: 1rem; }
+.line { font-family: var(--mono); font-size: .85rem; margin: .5rem 0 0; overflow-wrap: anywhere; }
+
+.system details { margin-top: .75rem; }
+.system summary { cursor: pointer; font-size: .85rem; color: var(--accent); }
+.system table.grid { margin: .5rem 0 0; font-size: .85rem; }
+/* The numbers keep only what they need, so a line of moves gets the rest of the
+   row and stays on one line. */
+.system table.grid th[scope="row"] { font-weight: 400; }
+.system table.grid td { width: 1%; white-space: nowrap; padding-left: .9rem; }
 
 .chart { position: relative; margin: 1.25rem 0; }
 /* A donut has nothing to gain from the full card width -- past this it just

@@ -47,6 +47,15 @@ def record(row: Any) -> dict[str, Any]:
     }
 
 
+def points_lost(draws: int, losses: int) -> float:
+    """Points dropped against the maximum available -- a loss costs one, a draw half.
+
+    The number the repertoire drill-down ranks on. Frequency finds the lines a
+    player plays; this finds the ones costing them the year.
+    """
+    return round(losses + draws / 2, 1)
+
+
 def rate(part: int, whole: int) -> float:
     return round(part / whole, 4) if whole else 0.0
 

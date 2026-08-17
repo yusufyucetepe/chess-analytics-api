@@ -194,6 +194,97 @@ async def test_the_tree_only_reads_the_plies_it_was_told_to(
     assert depth == settings.report_tree_plies
 
 
+async def test_a_system_is_the_family_before_the_colon(
+    session: AsyncSession, player: Player
+) -> None:
+    """Postgres does the splitting: "Vienna Game: Stanley Variation, Reversed
+    Spanish" and "Vienna Game: Max Lange Defense" are one system to a player."""
+    await seed(
+        session,
+        player,
+        [
+            {
+                "color": Color.WHITE,
+                "opening_name": "Vienna Game: Stanley Variation, Reversed Spanish",
+                "opening_line": ["e4", "e5", "Nc3", "Nf6", "Bc4"],
+                "result": Result.WIN,
+            }
+        ]
+        * 6
+        + [
+            {
+                "color": Color.WHITE,
+                "opening_name": "Vienna Game: Max Lange Defense",
+                "opening_line": ["e4", "e5", "Nc3", "Nc6", "f4"],
+                "result": Result.LOSS,
+            }
+        ]
+        * 4,
+    )
+
+    section = await openings.build(session, player.id, since=SINCE, until=UNTIL)
+
+    assert [system["name"] for system in section["systems"]] == ["Vienna Game"]
+    vienna = section["systems"][0]
+    assert (vienna["games"], vienna["wins"], vienna["losses"]) == (10, 6, 4)
+    assert vienna["mainline"] == ["e4", "e5", "Nc3"], "shared by every game in it"
+    assert vienna["branch_ply"] == 4
+    assert [branch["sans"] for branch in vienna["branches"]] == [["Nf6", "Bc4"], ["Nc6", "f4"]]
+    assert [branch["score"] for branch in vienna["branches"]] == [1.0, 0.0], "best to worst"
+
+
+async def test_a_line_with_no_name_reaches_the_tree_but_not_the_systems(
+    session: AsyncSession, player: Player
+) -> None:
+    """`split_part` on a NULL name is NULL, which must not become a system called
+    nothing -- and the games still have to be somewhere, so they stay in the bar."""
+    await seed(
+        session,
+        player,
+        [{"opening_name": None, "opening_line": ["a3", "b6"]}] * 10,
+    )
+
+    section = await openings.build(session, player.id, since=SINCE, until=UNTIL)
+
+    assert section["systems"] == []
+    assert [node["san"] for node in section["tree"]["white"]] == ["a3"]
+    assert section["concentration"]["segments"] == [
+        {"name": None, "color": None, "games": 10, "share": 1.0}
+    ]
+
+
+async def test_the_concentration_denominator_is_every_game_in_the_window(
+    session: AsyncSession, player: Player
+) -> None:
+    """Games that never reached a named opening -- or any opening at all -- still
+    count against the share, or four systems could "cover" a year they do not."""
+    await seed(
+        session,
+        player,
+        [
+            {
+                "opening_name": "London System",
+                "opening_line": ["d4", "d5", "Nf3", "Nf6", "Bf4"],
+            }
+        ]
+        * 10
+        + [{"opening_name": None, "opening_line": []}] * 10,
+    )
+
+    concentration = (await openings.build(session, player.id, since=SINCE, until=UNTIL))[
+        "concentration"
+    ]
+
+    assert concentration["games"] == 20
+    assert concentration["segments"][0] == {
+        "name": "London System",
+        "color": "white",
+        "games": 10,
+        "share": 0.5,
+    }
+    assert concentration["covering"] == {"systems": 1, "share": 0.5, "reached": False}
+
+
 # --- quality ----------------------------------------------------------------
 
 

@@ -144,13 +144,88 @@ def test_a_report_built_before_shades_existed_still_renders(request_: Request) -
     assert "Offbeat Strategist" in html
 
 
-def test_the_page_leaves_the_repertoire_tree_alone(request_: Request) -> None:
-    """The section is gone from the page but not from the payload -- rendering
-    it was what made the openings card unreadable."""
+def test_the_repertoire_reads_as_systems_rather_than_a_tree(request_: Request) -> None:
+    """A card per system with its mainline, over the bar that is the actual
+    story. The sorted tree stays in the payload and off the page."""
     html = render_report(request_, full_payload())
 
-    assert "Repertoire" not in html
-    assert "<details" not in html
+    assert "Vienna Game" in html
+    assert "1.e4 e5 2.Nc3" in html, "the moves the whole system shares"
+    assert 'class="stack"' in html
+    assert "Everything else" in html
+
+
+def test_the_openings_and_the_repertoire_are_one_section(request_: Request) -> None:
+    """Concentration, then the systems, then the openings under them -- one card
+    rather than two saying overlapping things about the same games."""
+    html = render_report(request_, full_payload())
+
+    assert html.count("<h2>Opening Repertoire</h2>") == 1
+    assert html.index('class="stack"') < html.index("Most played") < html.index("As white")
+
+
+def test_the_best_and_worst_openings_are_off_the_page(request_: Request) -> None:
+    """A single opening picked out of a year is a fluke with a caption. It stays
+    in the payload, where a caller can decide for themselves."""
+    html = render_report(request_, full_payload())
+
+    assert "French Defense" not in html, "the fixture's worst opening"
+    assert "Ranked over openings" not in html
+    assert full_payload()["sections"]["openings"]["worst"]["eco"] == "C00"
+
+
+def test_the_drill_down_opens_one_system_at_a_time(request_: Request) -> None:
+    """`name` on <details> is what makes them exclusive. Without it the page is
+    six open trees again, which is what this section replaced."""
+    html = render_report(request_, full_payload())
+
+    assert html.count("<details") == html.count('<details name="repertoire"')
+    assert "<details" in html
+
+
+def test_the_branches_are_numbered_from_where_they_start(request_: Request) -> None:
+    """The Vienna branches begin on Black's second move. Numbered from one they
+    would read as a different line."""
+    html = render_report(request_, full_payload())
+
+    assert "2…Bc5 3.Bc4" in html
+    assert "1.Bc5" not in html
+
+
+def test_a_report_built_before_the_systems_existed_still_renders(request_: Request) -> None:
+    """StrictUndefined: stored payloads have `tree` and no `systems`. The rest of
+    the section is built from keys they do have, so it still stands."""
+    payload = full_payload()
+    del payload["sections"]["openings"]["systems"]
+    del payload["sections"]["openings"]["concentration"]
+
+    html = render_report(request_, payload)
+
+    assert 'class="stack"' not in html
+    assert "Vienna Game" not in html
+    assert "70 different openings over the year" in html
+    assert "Most played" in html, "the per-colour tables do not depend on systems"
+
+
+def test_the_signature_claims_no_multiple_of_anybody(request_: Request) -> None:
+    """Stored payloads still carry `lift`, so this is about the page, not the
+    section: there is no denominator that makes "5.1x more often" true."""
+    html = render_report(request_, full_payload())
+
+    assert "more often" not in html
+    assert "&times;" not in html
+    assert "10% of games" in html, "the share it is built on still stands"
+
+
+def test_the_openings_card_counts_openings_not_eco_codes(request_: Request) -> None:
+    """The jargon stays a hoverable tag on the code itself; the prose says what
+    the number is a count of."""
+    html = render_report(request_, full_payload())
+
+    prose = html.replace('title="Encyclopaedia of Chess Openings code"', "")
+    assert "ECO" not in prose
+    assert "70 different openings over the year" in html
+    assert 'class="eco"' in html, "the code is still shown beside the name"
 
 
 def test_the_page_no_longer_says_when_you_play(request_: Request) -> None:
@@ -243,6 +318,30 @@ def test_a_players_name_is_escaped_in_the_page_body(request_: Request) -> None:
 )
 def test_commas(value: Any, expected: str) -> None:
     assert templating.commas(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(1, "1 opening"), (0, "0 openings"), (1234, "1,234 openings"), (None, "-- openings")],
+)
+def test_plural(value: Any, expected: str) -> None:
+    assert templating.plural(value, "opening") == expected
+
+
+def test_moves_are_numbered_from_the_first_move() -> None:
+    assert templating.moves(["e4", "e5", "Nc3", "Nf6"]) == "1.e4 e5 2.Nc3 Nf6"
+
+
+def test_a_line_starting_on_blacks_move_says_so() -> None:
+    """The drill-down branches start below a shared mainline, so they open
+    mid-move. "2.Bc5" is not a move anyone played."""
+    assert templating.moves(["Bc5", "Bc4"], 4) == "2…Bc5 3.Bc4"
+    assert templating.moves(["Bc4", "d6"], 5) == "3.Bc4 d6"
+
+
+@pytest.mark.parametrize("empty", [None, []])
+def test_a_line_with_no_moves_prints_nothing(empty: Any) -> None:
+    assert templating.moves(empty) == ""
 
 
 @pytest.mark.parametrize(

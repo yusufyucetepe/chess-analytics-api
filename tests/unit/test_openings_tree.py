@@ -1,10 +1,12 @@
 """The repertoire tree, which is the only section logic that is not SQL."""
 
-from app.report.sections.openings import TreeRow, build_tree
+from app.report.sections.openings import LineRow, build_tree
 
 
-def line(color: str, moves: str, games: int, wins: int, draws: int, losses: int) -> TreeRow:
-    return TreeRow(color, moves.split(), games, wins, draws, losses)
+def line(
+    color: str, moves: str, games: int, wins: int, draws: int, losses: int, family: str = "Any"
+) -> LineRow:
+    return LineRow(color, family, moves.split(), games, wins, draws, losses)
 
 
 def test_a_node_totals_everything_played_through_it() -> None:

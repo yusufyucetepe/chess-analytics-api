@@ -226,7 +226,24 @@ def test_the_signature_tag_is_the_most_over_represented_not_the_most_played() ->
     signature = classify(both)["signature"]
 
     assert signature["tag"] == "gambit"
-    assert signature["lift"] > 5
+    assert signature["share"] == pytest.approx(0.3, abs=0.01)
+
+
+def test_the_signature_publishes_no_multiplier() -> None:
+    """The lift ranks the tags and stops there. Published, it would read as a
+    comparison against other players -- and the only denominator we have is the
+    share of ECO codes carrying the tag, which is a fact about the catalogue."""
+    signals = Signals(
+        games=200,
+        **tags({"positional": 180, "closed": 150, "gambit": 60}, 200),
+        avg_plies=40.0,
+        decisive=190,
+        draws=10,
+        forced_endings=150,
+        avg_opening_captures=2.5,
+    )
+
+    assert set(classify(signals)["signature"]) == {"tag", "adjective", "share"}
 
 
 def test_a_tag_below_the_share_floor_cannot_name_anyone() -> None:

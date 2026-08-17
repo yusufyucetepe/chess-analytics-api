@@ -149,6 +149,10 @@ def _flavour(signals: Signals) -> str | None:
     which describes the table rather than the player. A tag has to clear both a
     share floor and a lift floor, so a single freak line cannot name someone and
     neither can an unremarkable one.
+
+    The lift ranks tags against each other and goes no further than this
+    function. It is a ratio to the catalogue, not to other players, which is why
+    the payload publishes the share and not the multiple -- see ``_verdict``.
     """
     if not signals.tagged_games:
         return None
@@ -177,7 +181,6 @@ def _verdict(
     flavour: str | None = None,
     shades: Sequence[str] = (),
 ) -> dict[str, Any]:
-    baseline = tag_baseline().get(flavour or "", 0.0)
     share = signals.tag_counts.get(flavour or "", 0) / (signals.tagged_games or 1)
     return {
         "label": label,
@@ -187,8 +190,13 @@ def _verdict(
         # Nearest names on the same three axes. Empty rather than absent, so a
         # consumer never has to tell "we withheld these" from "old payload".
         "shades": list(shades),
-        # What earned the adjective, so the frontend can say "you play offbeat
-        # openings ten times more often than the ECO table would suggest".
+        # What earned the adjective. Deliberately no multiplier: the only
+        # denominator we hold is the share of *ECO codes* carrying the tag, which
+        # is a fact about the catalogue and not about anybody's opponents. It
+        # still ranks the tags in `_flavour`, where nothing is claimed about
+        # other players; published as "5.1x more often" it reads as a comparison
+        # that was never measured. A real one needs the opening explorer's
+        # aggregates for the player's rating band and time control.
         "signature": (
             None
             if flavour is None
@@ -196,7 +204,6 @@ def _verdict(
                 "tag": flavour,
                 "adjective": FLAVOUR_TAGS[flavour],
                 "share": round(share, 4),
-                "lift": round(share / baseline, 1) if baseline else None,
             }
         ),
         "games": signals.games,

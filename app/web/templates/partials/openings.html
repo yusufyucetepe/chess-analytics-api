@@ -1,33 +1,113 @@
-{# The payload still carries `openings.tree`; nothing on the page reads it yet.
-   The repertoire list was more detail than this card could carry, and the API
-   keeps it available for whatever it turns into. #}
-<section class="card">
-  <h2>Openings</h2>
-  <p class="lede">{{ openings.distinct_ecos }} distinct ECO codes over the year.</p>
+{# One section, widest to narrowest: how concentrated the year was, then the
+   systems it was concentrated in, then the openings underneath them.
 
-  {% if openings.best or openings.worst %}
-    <div class="facts">
-      {% if openings.best %}
-        <p><b>Best.</b> {{ openings.best.name or openings.best.eco }}
-           ({{ openings.best.eco }}) as {{ openings.best.color }} &mdash;
-           {{ openings.best.score|percent }} over {{ openings.best.games }} games.</p>
-      {% endif %}
-      {% if openings.worst %}
-        <p><b>Worst.</b> {{ openings.worst.name or openings.worst.eco }}
-           ({{ openings.worst.eco }}) as {{ openings.worst.color }} &mdash;
-           {{ openings.worst.score|percent }} over {{ openings.worst.games }} games.</p>
-      {% endif %}
-      <p class="fine">Ranked over openings with at least
-         {{ openings.min_games_for_ranking }} games behind them.</p>
+   Two things stay in the payload and off the page. `openings.tree` is the whole
+   sorted move tree, which nobody reads; `best` and `worst` were a single lucky
+   opening dressed up as a verdict. The API still serves both.
+
+   Everything about the systems is read through `.get`: reports stored before
+   they existed have no such key, and the templates run on StrictUndefined.
+
+   The counts are of distinct ECO codes, but the page says "openings": the code
+   is the grouping key, and nobody outside chess reads B22 as a noun. #}
+{% macro eco(code) -%}
+  <span class="eco" title="Encyclopaedia of Chess Openings code">{{ code }}</span>
+{%- endmacro %}
+{% set concentration = openings.get('concentration') %}
+{% set systems = openings.get('systems') %}
+<section class="card">
+  <h2>Opening Repertoire</h2>
+
+  {# The dashes matter: without them the sentence ends " ." #}
+  <p class="lede">
+    {{ openings.distinct_ecos|plural("different opening") }} over the year
+    {%- if systems and concentration %}{% set covering = concentration.covering %} &mdash;
+      {%- if covering.reached %}
+        {{ covering.systems|plural("system") }} cover {{ covering.share|percent(0) }}
+        of your {{ concentration.games|commas }} games
+      {%- else %}
+        your busiest {{ covering.systems|plural("system") }} account for just
+        {{ covering.share|percent(0) }} of {{ concentration.games|commas }} games
+      {%- endif %}
+    {%- endif -%}
+    .
+  </p>
+
+  {% if systems and concentration %}
+    {# The tooltip is a child element rather than a `title`: two steps of one
+       ramp are hard to tell apart by eye, and a hover that arrives a second
+       late is no help. It repeats what the key below already says in text, so
+       nothing depends on being able to hover. #}
+    <div class="stack" role="img" aria-label="Share of games by opening system, busiest first">
+      {% for segment in concentration.segments %}
+        <span class="{{ 'seg--rest' if not segment.name else 'seg--' ~ loop.index }}"
+              style="flex-grow: {{ segment.games }}">
+          <b class="tip">{{ segment.name or "Everything else" }}
+            &middot; {{ segment.games|commas }} games
+            &middot; {{ segment.share|percent(0) }}</b>
+        </span>
+      {% endfor %}
+    </div>
+    <ol class="stack-key">
+      {% for segment in concentration.segments %}
+        <li>
+          <i class="swatch {{ 'seg--rest' if not segment.name else 'seg--' ~ loop.index }}"></i>
+          {{ segment.name or "Everything else" }}
+          <span class="share">{{ segment.share|percent(0) }}</span>
+        </li>
+      {% endfor %}
+    </ol>
+
+    <div class="systems">
+      {% for system in systems %}
+        <article class="system">
+          <h3>{{ system.name }}</h3>
+          <p class="fine">as {{ system.color }}</p>
+          <p class="system-record">
+            <b>{{ system.games|commas }}</b> games &middot;
+            <b>{{ system.score|percent(0) }}</b> scored
+          </p>
+          {% if system.mainline %}
+            <p class="line">{{ system.mainline|moves }}</p>
+          {% endif %}
+          {% if system.branches %}
+            {# One at a time: `name` makes these an exclusive accordion, so the
+               page cannot turn back into six open trees. #}
+            <details name="repertoire">
+              <summary>Best lines to worst</summary>
+              <table class="grid">
+                <thead>
+                  <tr>
+                    <th scope="col">Line</th>
+                    <th scope="col">Games</th>
+                    <th scope="col">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for branch in system.branches %}
+                    <tr>
+                      <th scope="row" class="line">{{ branch.sans|moves(branch.ply) }}</th>
+                      <td>{{ branch.games|commas }}</td>
+                      <td>{{ branch.score|percent(0) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </details>
+          {% endif %}
+        </article>
+      {% endfor %}
     </div>
   {% endif %}
 
+  <h3 class="subhead">Most played</h3>
   <div class="columns">
     {% for colour in ["white", "black"] %}
       {% set side = openings.by_color[colour] %}
       <div>
-        <h3>As {{ colour }}</h3>
-        <p class="fine">{{ side.games|commas }} games, {{ side.distinct_ecos }} ECOs.</p>
+        <h4>As {{ colour }}</h4>
+        <p class="fine">{{ side.games|commas }} games across
+           {{ side.distinct_ecos|plural("opening") }}.</p>
         {% if side.top %}
           <table class="grid">
             <thead>
@@ -36,7 +116,7 @@
             <tbody>
               {% for entry in side.top %}
                 <tr>
-                  <th scope="row"><span class="eco">{{ entry.eco }}</span> {{ entry.name or "Unnamed" }}</th>
+                  <th scope="row">{{ eco(entry.eco) }} {{ entry.name or "Unnamed" }}</th>
                   <td>{{ entry.games|commas }}</td>
                   <td>{{ entry.score|percent }}</td>
                 </tr>
@@ -44,7 +124,7 @@
             </tbody>
           </table>
         {% else %}
-          <p class="hint">Nothing with an ECO code yet.</p>
+          <p class="hint">No named openings yet.</p>
         {% endif %}
       </div>
     {% endfor %}

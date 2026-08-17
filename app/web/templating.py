@@ -66,6 +66,34 @@ def commas(value: Any) -> str:
     return f"{value:,}"
 
 
+def moves(sans: Any, ply: int = 1) -> str:
+    """A list of SAN moves, numbered from the ply it starts on.
+
+    ``["e4", "e5", "Nc3"]`` is "1.e4 e5 2.Nc3". A line that starts mid-move --
+    the drill-down branches do, since the mainline above them is shared -- opens
+    with the black-to-move form, "2...Nf6 3.f4", or the moves would be numbered
+    a move out and read as a different line entirely.
+    """
+    written = []
+    for offset, san in enumerate(sans or []):
+        absolute = ply + offset
+        number = (absolute + 1) // 2
+        if absolute % 2:
+            written.append(f"{number}.{san}")
+        elif offset == 0:
+            written.append(f"{number}…{san}")
+        else:
+            written.append(san)
+    return " ".join(written)
+
+
+def plural(value: Any, noun: str, suffix: str = "s") -> str:
+    """A count and its noun, agreeing: "1 opening", "38 openings"."""
+    if value is None:
+        return f"-- {noun}{suffix}"
+    return f"{commas(value)} {noun}{'' if value == 1 else suffix}"
+
+
 def percent(value: Any, digits: int = 1) -> str:
     """A 0..1 ratio as a percentage. The payload never stores these pre-formatted."""
     if value is None:
@@ -108,6 +136,8 @@ def build_templates() -> Jinja2Templates:
         {
             "json_data": json_data,
             "commas": commas,
+            "plural": plural,
+            "moves": moves,
             "percent": percent,
             "signed": signed,
             "day": day,

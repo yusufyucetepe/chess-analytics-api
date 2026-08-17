@@ -49,6 +49,27 @@ class Settings(BaseSettings):
     report_tree_plies: int = 8
     #: Lines played once are noise in a tree and most of its JSON size.
     report_tree_min_games: int = 2
+    #: How many opening systems get a card of their own. The rest are summed into
+    #: one "everything else" bucket, which is what makes the bar readable.
+    report_systems_shown: int = 6
+    #: A family needs this many games before it is a system rather than an
+    #: experiment. Below it the games still count, in "everything else".
+    report_system_min_games: int = 8
+    #: How far past the point where a system's mainline first branches the
+    #: drill-down goes. Two plies is "their choice, and our answer to it".
+    report_system_branch_plies: int = 2
+    #: How dominant a move has to be for the mainline to keep going through it.
+    #: Not 1.0: two transposed games out of 251 are enough to "branch" a Vienna
+    #: at move one, which would make the mainline 1.e4 and the drill-down a
+    #: single row holding the entire system.
+    report_system_mainline_dominance: float = 0.95
+    #: Rows in one system's drill-down: the busiest lines, listed best score to
+    #: worst. Deep enough that a line met a handful of times still makes the cut,
+    #: since a bad one that rare is exactly what nobody notices on their own.
+    report_system_branches_shown: int = 8
+    #: The share of the year that "N systems cover M% of your games" aims at.
+    #: Read as "most of them", so the count is the fewest systems reaching it.
+    report_concentration_target: float = 0.6
     #: An opening needs this many games before its score is worth ranking on.
     report_opening_min_games: int = 5
     #: A gap longer than this ends a playing session.

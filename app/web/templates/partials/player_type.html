@@ -35,12 +35,15 @@
     </p>
   {% endif %}
 
+  {# No multiplier here any more. Stored payloads still carry `lift`; the number
+     compared the player to the ECO catalogue while reading as a comparison to
+     other players, and there is no denominator on hand that would make that
+     sentence true. #}
   {% if type.signature %}
     <p class="signature">
       Your repertoire is <b>{{ type.signature.adjective|lower }}</b> in
-      {{ type.signature.share|percent(0) }} of games
-      {%- if type.signature.lift %} &mdash; {{ type.signature.lift }}&times; more often
-      than the ECO table would suggest{% endif %}.
+      {{ type.signature.share|percent(0) }} of games &mdash; the most distinctive
+      thing about it.
     </p>
   {% endif %}
 
