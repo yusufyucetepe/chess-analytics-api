@@ -15,12 +15,11 @@ a measurement, and counting them makes a new player's year read as "started at
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ARRAY, Integer, func, select
-from sqlalchemy.dialects.postgresql import aggregate_order_by
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Game
-from app.report.sections._common import iso, number, window
+from app.report.sections._common import first, iso, number, window
 
 
 async def build(
@@ -69,15 +68,6 @@ def _summarise(rows: list[Any]) -> dict[str, Any]:
     }
 
 
-def _first(value: Any, *order: Any) -> Any:
-    """The first ``value`` in ``order``, as an aggregate over the group.
-
-    Postgres has no ``FIRST()``: sorting inside ``array_agg`` and taking element
-    one is the standard way, and it keeps the month series to a single query.
-    """
-    return func.array_agg(aggregate_order_by(value, *order), type_=ARRAY(Integer))[1]
-
-
 async def _provisional_games(
     session: AsyncSession, player_id: int, since: datetime, until: datetime
 ) -> int:
@@ -114,8 +104,8 @@ async def _monthly(
             func.avg(after).label("average"),
             func.greatest(func.max(after), func.max(Game.player_rating)).label("peak"),
             func.least(func.min(after), func.min(Game.player_rating)).label("low"),
-            _first(Game.player_rating, *order).label("first_rating"),
-            _first(after, Game.played_at.desc(), Game.game_id.desc()).label("last_rating"),
+            first(Game.player_rating, *order).label("first_rating"),
+            first(after, Game.played_at.desc(), Game.game_id.desc()).label("last_rating"),
         )
         .where(
             *window(player_id, since, until),

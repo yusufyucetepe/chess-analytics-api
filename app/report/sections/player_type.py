@@ -9,25 +9,36 @@ split that sums to one, and the result is the weighted mean of the votes. That
 guarantees the scores sum to 100 without a rescaling step, and it means a signal
 with nothing to say can abstain by voting down the middle instead of dragging
 the answer somewhere it did not intend.
+
+Two rules govern what the opening signals are allowed to read:
+
+* **One game, one vote.** A game contributes a single unit of tag mass split
+  across its tags, so a code carrying four of them does not outvote four games
+  on a code carrying one.
+* **Only what the player chose.** The side that made the move defining an
+  opening owns it. "Sicilian Defense: Smith-Morra Gambit" is White's idea, and
+  a Black player who met it gets read on the Sicilian they did choose -- see
+  ``app.report.families``.
 """
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, NamedTuple
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Game, OpeningMeta, Result
+from app.db.models import Color, Game, Result
 from app.db.seed import tag_baseline
+from app.report.families import eco_tags, family_owner, family_sql, family_tags, owner
 from app.report.player_type_weights import (
     AGGRESSIVE,
     AXES,
     AXIS_NOUNS,
-    BLEND_MARGIN,
     BLENDED_NOUN,
     BUSY_OPENING_CAPTURES,
+    CENTRIST_SHARE,
     DISCLAIMER,
     FLAVOUR_MIN_LIFT,
     FLAVOUR_MIN_SHARE,
@@ -35,6 +46,7 @@ from app.report.player_type_weights import (
     LONG_GAME_PLIES,
     MIN_GAMES_FOR_A_LABEL,
     NAME_OVERRIDES,
+    OPENNESS_BY_LETTER,
     PLAIN_LABELS,
     POSITIONAL,
     SHORT_GAME_PLIES,
@@ -42,8 +54,10 @@ from app.report.player_type_weights import (
     TACTICAL,
     TAG_AXES,
 )
-from app.report.sections._common import rate, window
+from app.report.sections._common import first, rate, window
 from app.report.shades import match as shades_for
+from app.report.style_reference import Reference
+from app.report.style_reference import load as load_reference
 
 Vote = dict[str, float]
 
@@ -66,14 +80,25 @@ class Signals:
     """What the classifier reads. Everything here comes from SQL aggregates."""
 
     games: int = 0
+    #: Games whose opening was the player's own choice, and had tags to read.
     tagged_games: int = 0
+    #: Games carrying each tag. Counts games, so the shares it feeds are shares
+    #: of a year rather than of some abstract quantity.
     tag_counts: dict[str, int] = field(default_factory=dict)
+    #: The same games as fractions: one unit each, split across their tags. What
+    #: the vote is built from, so a richly tagged code cannot shout.
+    tag_mass: dict[str, float] = field(default_factory=dict)
+    #: Mean openness of the chosen openings, 0 (closed) to 1 (open).
+    openness: float | None = None
     avg_plies: float | None = None
     decisive: int = 0
     draws: int = 0
     forced_endings: int = 0
     flagged: int = 0
     avg_opening_captures: float | None = None
+    #: For finding the population this player belongs to.
+    main_perf: str | None = None
+    rating: int | None = None
 
     @property
     def gambit_games(self) -> int:
@@ -84,10 +109,16 @@ async def build(
     session: AsyncSession, player_id: int, *, since: datetime, until: datetime
 ) -> dict[str, Any]:
     """Gather the signals for one player and hand them to the classifier."""
-    return classify(await gather(session, player_id, since=since, until=until))
+    signals = await gather(session, player_id, since=since, until=until)
+    reference = (
+        await load_reference(session, signals.main_perf, signals.rating)
+        if signals.main_perf
+        else None
+    )
+    return classify(signals, reference)
 
 
-def classify(signals: Signals) -> dict[str, Any]:
+def classify(signals: Signals, reference: Reference | None = None) -> dict[str, Any]:
     """Turn signals into three scores summing to 100, plus a label.
 
     Two things are withheld rather than guessed. Below ``MIN_GAMES_FOR_A_LABEL``
@@ -96,6 +127,10 @@ def classify(signals: Signals) -> dict[str, Any]:
     when no signal has anything to say at all, the scores are ``None`` rather
     than an even split: a third each is a verdict of "perfectly balanced", which
     is a different statement from "we cannot tell".
+
+    ``reference`` decides the All-Rounder. Without one the leading axis stands:
+    a population we cannot see is not evidence that somebody is in the middle of
+    it, and saying "All-Rounder" on that basis is the failure this replaced.
     """
     mean = _weighted_mean(_votes(signals))
     if mean is None:
@@ -104,27 +139,44 @@ def classify(signals: Signals) -> dict[str, Any]:
         )
 
     scores = _percentages(mean)
-    ranked = sorted(scores.items(), key=lambda item: -item[1])
+    leaning = max(AXES, key=lambda axis: (scores[axis], axis))
     confident = signals.games >= MIN_GAMES_FOR_A_LABEL
 
-    # `None` when the top two axes are within the margin: the player leans
-    # somewhere, but not far enough for the noun to claim otherwise.
-    decided = ranked[0][0] if ranked[0][1] - ranked[1][1] >= BLEND_MARGIN else None
+    centre = _centre(scores, reference)
+    # `None` is the All-Rounder: near enough to the middle of this player's own
+    # population that naming an axis would be reporting noise.
+    decided = None if centre and centre["centrist"] else leaning
     flavour = _flavour(signals)
     label = _name(decided, flavour) if confident else None
 
     return _verdict(
         signals,
         scores=scores,
-        leaning=ranked[0][0],
+        leaning=leaning,
         label=label,
         confident=confident,
         flavour=flavour,
+        centre=centre,
         # Withheld with the label rather than with the scores: naming three
         # grandmasters off a dozen games would be a stronger claim than the
         # label we already refused to make.
         shades=shades_for(scores, flavour) if label else (),
     )
+
+
+def _centre(scores: dict[str, int], reference: Reference | None) -> dict[str, Any] | None:
+    """How central this player is within their own band, or ``None`` if unknown."""
+    if reference is None:
+        return None
+    percentile = reference.percentile(scores)
+    return {
+        "percentile": round(percentile, 4),
+        "centrist": percentile <= CENTRIST_SHARE,
+        "share": CENTRIST_SHARE,
+        "perf": reference.perf,
+        "rating_band": reference.rating_band,
+        "players": reference.players,
+    }
 
 
 def _name(axis: str | None, flavour: str | None) -> str:
@@ -179,6 +231,7 @@ def _verdict(
     label: str | None,
     confident: bool,
     flavour: str | None = None,
+    centre: dict[str, Any] | None = None,
     shades: Sequence[str] = (),
 ) -> dict[str, Any]:
     share = signals.tag_counts.get(flavour or "", 0) / (signals.tagged_games or 1)
@@ -187,6 +240,10 @@ def _verdict(
         "confident": confident,
         "scores": scores,
         "leaning": leaning,
+        # Where the player sits in their own rating band and time control, and
+        # therefore whether the label was allowed to be All-Rounder. `None` when
+        # no band had enough players to say.
+        "centre": centre,
         # Nearest names on the same three axes. Empty rather than absent, so a
         # consumer never has to tell "we withheld these" from "old payload".
         "shades": list(shades),
@@ -215,6 +272,7 @@ def _verdict(
             "forced_ending_share": rate(signals.forced_endings, signals.decisive),
             "flagged_share": rate(signals.flagged, signals.games),
             "avg_plies": round(signals.avg_plies, 1) if signals.avg_plies else None,
+            "openness": round(signals.openness, 4) if signals.openness is not None else None,
             "avg_opening_captures": (
                 round(signals.avg_opening_captures, 2) if signals.avg_opening_captures else None
             ),
@@ -232,6 +290,13 @@ def _votes(signals: Signals) -> list[tuple[float, Vote]]:
             weighed.append((SIGNAL_WEIGHTS[name], vote))
 
     add("openings", _openings_vote(signals))
+    if signals.openness is not None:
+        # Open positions are decided by what the pieces do; closed ones by where
+        # they stand. Between the two sits the Sicilian, at half a point.
+        add(
+            "openness",
+            _mix({POSITIONAL: 1.0}, {AGGRESSIVE: 0.55, TACTICAL: 0.45}, signals.openness),
+        )
     if signals.games:
         add(
             "gambits",
@@ -290,12 +355,12 @@ def _openings_vote(signals: Signals) -> Vote | None:
     are all 'offbeat' and 'flexible' has told us about their taste, not their
     style, and the other signals should decide alone.
     """
-    if not signals.tagged_games:
+    if not signals.tag_mass:
         return None
     raw = dict.fromkeys(AXES, 0.0)
-    for tag, count in signals.tag_counts.items():
+    for tag, mass in signals.tag_mass.items():
         for axis, pull in TAG_AXES.get(tag, {}).items():
-            raw[axis] += pull * count / signals.tagged_games
+            raw[axis] += pull * mass
     return _normalise(raw) if sum(raw.values()) else None
 
 
@@ -351,6 +416,91 @@ def _percentages(vote: Vote) -> dict[str, int]:
     return floors
 
 
+@dataclass(frozen=True, slots=True)
+class OpeningRow:
+    """One (opening, colour) group of games, as the classifier reads it."""
+
+    eco: str | None
+    family: str
+    color: Color
+    ply: int | None
+    games: int
+
+
+class Openings(NamedTuple):
+    """What the opening groups add up to, once the two rules have been applied."""
+
+    counts: dict[str, int]
+    mass: dict[str, float]
+    openness: float | None
+    tagged_games: int
+
+
+def read_openings(rows: Sequence[OpeningRow]) -> Openings:
+    """Fold opening groups into tag counts, tag mass, mean openness and a total.
+
+    Pure, and separated from the query for it: every rule about whose opening it
+    was and what a game is worth lives here, where a test can state a repertoire
+    in four lines and read the answer.
+    """
+    # A family is defined by its shallowest line: the Sicilian is settled at
+    # 1...c5, whatever White does on move two.
+    families: dict[str, int | None] = {}
+    for row in rows:
+        if row.family and row.ply:
+            seen = families.get(row.family)
+            families[row.family] = row.ply if seen is None else min(seen, row.ply)
+    codes, rollup = eco_tags(), family_tags()
+
+    counts: dict[str, int] = {}
+    mass: dict[str, float] = {}
+    openness = 0.0
+    chosen = 0
+    tagged = 0
+
+    for row in rows:
+        tags = _tags_for(row, families, codes, rollup)
+        if tags is None:
+            continue
+        chosen += row.games
+        if row.eco:
+            openness += OPENNESS_BY_LETTER.get(row.eco[0], 0.0) * row.games
+        if not tags:
+            continue
+        tagged += row.games
+        for tag in tags:
+            counts[tag] = counts.get(tag, 0) + row.games
+            mass[tag] = mass.get(tag, 0.0) + row.games / len(tags)
+
+    return Openings(counts, mass, openness / chosen if chosen else None, tagged)
+
+
+def _tags_for(
+    row: OpeningRow,
+    families: Mapping[str, int | None],
+    codes: Mapping[str, tuple[str, ...]],
+    rollup: Mapping[str, tuple[str, ...]],
+) -> tuple[str, ...] | None:
+    """The tags this game is allowed to say about the player. ``None`` to skip it.
+
+    Four cases, in order. The player chose the exact line, so it speaks for
+    them. They chose the family and the opponent chose the line inside it, so
+    the family speaks for them and the line does not. Nothing is known about
+    either, in which case the line stands -- an export with no ply is missing
+    data, and silently dropping those games would empty the signal rather than
+    sharpen it. Or the opening was the opponent's, and the game says nothing
+    about this player's taste at all.
+    """
+    leaf, whole = owner(row.ply), family_owner(row.family, families.get(row.family))
+    if leaf is row.color:
+        return codes.get(row.eco or "", ())
+    if whole is row.color:
+        return rollup.get(row.family, ())
+    if leaf is None and whole is None:
+        return codes.get(row.eco or "", ())
+    return None
+
+
 async def gather(
     session: AsyncSession, player_id: int, *, since: datetime, until: datetime
 ) -> Signals:
@@ -377,37 +527,60 @@ async def gather(
         )
     ).one()
 
-    tagged = (
+    family = family_sql(Game.opening_name).label("family")
+    opening_rows = (
         await session.execute(
-            select(func.count())
-            .select_from(Game)
-            .join(OpeningMeta, OpeningMeta.eco == Game.eco)
+            select(Game.eco, family, Game.color, Game.opening_ply, func.count().label("games"))
             .where(*where)
-        )
-    ).scalar_one()
-
-    # `joins_implicitly` because Postgres treats an unnest that references a
-    # FROM item to its left as LATERAL on its own. Without it SQLAlchemy cannot
-    # see the correlation and warns about a cartesian product it is not making.
-    tag = func.unnest(OpeningMeta.style_tags).column_valued("tag", joins_implicitly=True)
-    tag_rows = (
-        await session.execute(
-            select(tag, func.count().label("games"))
-            .select_from(Game)
-            .join(OpeningMeta, OpeningMeta.eco == Game.eco)
-            .where(*where)
-            .group_by(tag)
+            .group_by(Game.eco, family, Game.color, Game.opening_ply)
         )
     ).all()
+    openings = read_openings(
+        [OpeningRow(r.eco, r.family, r.color, r.opening_ply, r.games) for r in opening_rows]
+    )
+
+    perf, rating = await _population(session, player_id, since, until)
 
     return Signals(
         games=totals.games,
-        tagged_games=int(tagged),
-        tag_counts={row.tag: row.games for row in tag_rows},
+        tagged_games=openings.tagged_games,
+        tag_counts=openings.counts,
+        tag_mass=openings.mass,
+        openness=openings.openness,
         avg_plies=float(totals.avg_plies) if totals.avg_plies is not None else None,
         decisive=totals.decisive,
         draws=totals.draws,
         forced_endings=totals.forced,
         flagged=totals.flagged,
         avg_opening_captures=float(totals.captures) if totals.captures is not None else None,
+        main_perf=perf,
+        rating=rating,
     )
+
+
+async def _population(
+    session: AsyncSession, player_id: int, since: datetime, until: datetime
+) -> tuple[str | None, int | None]:
+    """The time control the player mostly plays, and where they ended it.
+
+    Which band a player is compared against is their busiest one, not their
+    best: a blitz player with four classical games is a blitz player.
+    """
+    # The rating is the latest settled one in that time control. Provisional
+    # ratings are left out for the reason the progression section leaves them
+    # out: 1500 is a placeholder, and it would put the player in the wrong band.
+    # `settled IS NULL` sorts first so that provisional and missing ratings fall
+    # to the back of the array rather than becoming its head.
+    settled = case((Game.provisional.is_not(True), Game.player_rating))
+    latest = first(settled, settled.is_(None), Game.played_at.desc(), Game.game_id.desc())
+
+    row = (
+        await session.execute(
+            select(Game.perf, func.count().label("games"), latest.label("rating"))
+            .where(*window(player_id, since, until))
+            .group_by(Game.perf)
+            .order_by(func.count().desc(), Game.perf)
+            .limit(1)
+        )
+    ).first()
+    return (row.perf, row.rating) if row else (None, None)

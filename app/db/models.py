@@ -18,6 +18,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -199,3 +200,32 @@ class OpeningMeta(Base):
     family: Mapped[str] = mapped_column(String(80))
     #: e.g. {sharp, gambit} or {solid, closed}. Drives the player-type classifier.
     style_tags: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list, server_default="{}")
+
+
+class StyleReference(Base):
+    """Where the middle of a population is, per time control and rating band.
+
+    The player-type classifier calls somebody an All-Rounder when they sit near
+    the centre of players like them, which needs to know where that centre is.
+    Recomputed on a schedule from the reports already built, because the answer
+    moves as more players are reported on -- and because nothing about it can be
+    a fixed number: a 1200 blitz population flags and blunders its way to a
+    different centre than a 2200 one, at no difference in style.
+    """
+
+    __tablename__ = "style_reference"
+
+    perf: Mapped[str] = mapped_column(String(16), primary_key=True)
+    #: The band's lower bound, e.g. 1400 for 1400-1599. See ``RATING_BAND``.
+    rating_band: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    players: Mapped[int] = mapped_column(Integer, default=0)
+    #: The mean of the three axis scores across the sample.
+    centroid: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    #: Distance from that centroid at each percentile, index 0..100. A player's
+    #: own distance is read off this by interpolation, so the cut is always a
+    #: share of the population rather than a number of points.
+    distances: Mapped[list[float]] = mapped_column(ARRAY(Float), default=list, server_default="{}")
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

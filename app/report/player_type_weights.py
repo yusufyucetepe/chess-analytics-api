@@ -27,7 +27,10 @@ TAG_AXES: Final[dict[str, dict[str, float]]] = {
     "attacking": {AGGRESSIVE: 1.0},
     "sharp": {AGGRESSIVE: 0.5, TACTICAL: 0.5},
     "tactical": {TACTICAL: 1.0},
-    "open": {TACTICAL: 0.5, AGGRESSIVE: 0.25},
+    # An open position is where an attack lands, so it leans to the aggressive
+    # axis rather than the tactical one. Tactics are combinations, and a closed
+    # Benoni has as many of those as a Vienna does.
+    "open": {AGGRESSIVE: 0.5, TACTICAL: 0.25},
     "unbalanced": {TACTICAL: 0.75, AGGRESSIVE: 0.25},
     "dynamic": {TACTICAL: 0.5, AGGRESSIVE: 0.5},
     # Descriptive rather than stylistic: a hypermodern or offbeat repertoire
@@ -41,12 +44,21 @@ TAG_AXES: Final[dict[str, dict[str, float]]] = {
 #: makes the classifier care more about that behaviour.
 SIGNAL_WEIGHTS: Final[dict[str, float]] = {
     "openings": 3.0,
+    "openness": 2.5,
     "gambits": 1.5,
     "game_length": 2.0,
     "finish": 2.0,
     "decisiveness": 1.5,
     "exchanges": 2.0,
 }
+
+#: How open the position tends to be, by ECO volume. C is 1.e4 e5 and the French
+#: -- pieces out, lines open early. B is the semi-open defences, where Black
+#: answers 1.e4 with something other than e5: half a point, because scoring the
+#: Sicilian as closed would push every Sicilian player towards the middle, which
+#: is the opposite of what this signal is for. A, D and E are the flank and
+#: closed openings.
+OPENNESS_BY_LETTER: Final[dict[str, float]] = {"A": 0.0, "B": 0.5, "C": 1.0, "D": 0.0, "E": 0.0}
 
 #: Plies. A game shorter than this reads as fully aggressive, longer than the
 #: high mark as fully positional, and anything between is interpolated.
@@ -68,12 +80,28 @@ AXIS_NOUNS: Final[dict[str, str]] = {
     TACTICAL: "Tactician",
 }
 
-#: Used when the top two axes are too close to separate.
+#: Used for the players who really are in the middle of their population.
 BLENDED_NOUN: Final = "All-Rounder"
 
-#: Percentage points. Inside this, the top two axes are close enough that
-#: picking one of them would be noise dressed up as a verdict.
-BLEND_MARGIN: Final = 8.0
+#: The share of a rating band and time control that may be called an
+#: All-Rounder: the closest this fraction to the population's centre.
+#:
+#: It replaces a margin between the top two axes, which was the wrong test. The
+#: three scores are constrained to sum to 100, so two of them are always close
+#: and the margin fired on nearly everybody. And no fixed margin could work
+#: across ratings anyway -- lower-rated players flag more and play shorter games
+#: whatever their style, which moves the whole population rather than any one
+#: player within it. Hence a percentile against players in the same band, and
+#: nothing absolute.
+CENTRIST_SHARE: Final = 0.15
+
+#: Rating points per reference band. Wide enough that a band fills up, narrow
+#: enough that 1500s are not compared against 2200s.
+RATING_BAND: Final = 200
+
+#: A band needs this many players behind it before its percentiles mean
+#: anything. Below it the classifier falls back rather than inventing a centre.
+REFERENCE_MIN_PLAYERS: Final = 30
 
 #: The adjective in the label, from the player's most distinctive tag: *what*
 #: they choose to play. Deliberately excludes `positional`, `strategic`,

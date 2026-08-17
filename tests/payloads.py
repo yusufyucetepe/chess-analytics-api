@@ -395,6 +395,14 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
                 "confident": True,
                 "scores": {"positional": 46, "aggressive": 26, "tactical": 28},
                 "leaning": "positional",
+                "centre": {
+                    "percentile": 0.62,
+                    "centrist": False,
+                    "share": 0.15,
+                    "perf": "blitz",
+                    "rating_band": 1800,
+                    "players": 412,
+                },
                 "signature": {
                     "tag": "offbeat",
                     "adjective": "Offbeat",
@@ -413,6 +421,7 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
                     "forced_ending_share": 0.6421,
                     "flagged_share": 0.2185,
                     "avg_plies": 62.4,
+                    "openness": 0.4211,
                     "avg_opening_captures": 1.35,
                     "tagged_games": 336,
                 },
@@ -492,10 +501,13 @@ def sparse_payload() -> dict[str, Any]:
         "label": None,
         "confident": False,
         "scores": {"positional": 33, "aggressive": 34, "tactical": 33},
+        # Six games is nowhere near a band's worth of anything, and there is no
+        # reference to place them in either.
+        "centre": None,
         "signature": None,
         "shades": [],
         "games": 6,
-        "signals": sections["player_type"]["signals"] | {"avg_plies": None},
+        "signals": sections["player_type"]["signals"] | {"avg_plies": None, "openness": None},
     }
     return payload
 

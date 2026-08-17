@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import Color, Game
+from app.report.families import family_sql
 from app.report.sections._common import points_lost, rate, record, result_counts, score, window
 
 
@@ -361,8 +362,10 @@ async def _by_line(
     # Postgres array slices are 1-based and inclusive, so [1:n] is the first n.
     line = Game.opening_line[1 : settings.report_tree_plies].label("line")
     # "Vienna Game: Stanley Variation, Frankenstein-Dracula Variation" is one
-    # system with a long name. The part before the colon is the system.
-    family = func.coalesce(func.split_part(Game.opening_name, ":", 1), "").label("family")
+    # system with a long name. The rule for cutting it down lives in
+    # `app.report.families`, because the classifier groups by the same families
+    # and the two must not drift.
+    family = family_sql(Game.opening_name).label("family")
     stmt = (
         select(Game.color, family, line, func.count().label("games"), *result_counts())
         .where(*window(player_id, since, until), func.cardinality(Game.opening_line) > 0)

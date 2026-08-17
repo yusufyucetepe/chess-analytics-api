@@ -97,9 +97,15 @@ async def session(engine) -> AsyncIterator[AsyncSession]:
     ``openings_meta`` is deliberately spared: it is static reference data seeded
     by a migration, not something a test can dirty, and truncating it would make
     every test start with a classifier that knows no openings.
+
+    ``style_reference`` is not spared, though it looks similar. It is a cache of
+    a population the reports themselves describe, so a row left behind by one
+    test is a band of players the next test never created.
     """
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE players, games, reports RESTART IDENTITY CASCADE"))
+        await conn.execute(
+            text("TRUNCATE players, games, reports, style_reference RESTART IDENTITY CASCADE")
+        )
     maker = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     async with maker() as s:
         yield s

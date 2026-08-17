@@ -20,7 +20,7 @@ from app.db.base import SessionLocal
 from app.db.models import Player, Report
 from app.ingest import ingest_player
 from app.lichess.client import LichessClient
-from app.report import cache, service
+from app.report import cache, service, style_reference
 from app.report.builder import build_payload
 from app.report.sections import build_sections
 from app.worker.failures import DEFAULT_MESSAGE, is_retryable, user_message
@@ -28,6 +28,26 @@ from app.worker.failures import DEFAULT_MESSAGE, is_retryable, user_message
 logger = logging.getLogger(__name__)
 
 BUILD_REPORT = "build_report"
+REFRESH_STYLE_REFERENCE = "refresh_style_reference"
+
+
+async def refresh_style_reference(ctx: dict[str, Any]) -> dict[str, int]:
+    """Recompute where the middle of each rating band sits. Runs on a cron.
+
+    Cheap and idempotent: it reads finished payloads and writes one row per
+    (time control, band). Scheduled rather than done at report time because the
+    answer barely moves between two reports and every report would otherwise
+    pay for the scan.
+    """
+    session_factory: async_sessionmaker[AsyncSession] = ctx.get("session_factory") or SessionLocal
+    async with session_factory() as session:
+        bands = await style_reference.refresh(session)
+    logger.info(
+        "style reference refreshed: %d band(s), %d player(s)",
+        len(bands),
+        sum(band.players for band in bands),
+    )
+    return {"bands": len(bands), "players": sum(band.players for band in bands)}
 
 
 async def build_report(ctx: dict[str, Any], report_id: str) -> dict[str, Any]:

@@ -13,6 +13,7 @@ from app.report.player_type_weights import (
     AGGRESSIVE,
     AXES,
     BLENDED_NOUN,
+    CENTRIST_SHARE,
     FLAVOUR_TAGS,
     MIN_GAMES_FOR_A_LABEL,
     NAME_OVERRIDES,
@@ -27,10 +28,22 @@ from app.report.sections.player_type import (
     _weighted_mean,
     classify,
 )
+from app.report.style_reference import Reference, summarise
 
 
 def tags(counts: dict[str, int], games: int) -> dict[str, Any]:
-    return {"tag_counts": counts, "tagged_games": games}
+    """A repertoire as both of the shapes the classifier reads it in.
+
+    ``tag_counts`` counts games and feeds the shares; ``tag_mass`` spreads one
+    unit per game across its tags and feeds the vote. Keeping them in one helper
+    is what stops a fixture stating a repertoire the pipeline could not produce.
+    """
+    total = sum(counts.values()) or 1
+    return {
+        "tag_counts": counts,
+        "tagged_games": games,
+        "tag_mass": {tag: count * games / total for tag, count in counts.items()},
+    }
 
 
 #: A King's Gambit and Evans Gambit diet: short games, almost no draws, and
@@ -149,25 +162,97 @@ def test_the_label_is_withheld_until_there_are_enough_games() -> None:
     assert result["scores"][AGGRESSIVE] > 0, "the scores are still computed"
 
 
-def test_two_axes_within_the_margin_blend_instead_of_picking() -> None:
-    """A dead heat should read as an all-rounder, not as a coin toss."""
-    balanced = Signals(
-        games=200,
-        **tags({"sharp": 200}, 200),
-        avg_plies=65.0,
-        decisive=180,
-        draws=20,
-        forced_endings=120,
-        flagged=60,
-        avg_opening_captures=1.5,
-    )
+MIDDLING = Signals(
+    games=200,
+    **tags({"sharp": 200}, 200),
+    avg_plies=65.0,
+    decisive=180,
+    draws=20,
+    forced_endings=120,
+    flagged=60,
+    avg_opening_captures=1.5,
+)
 
-    result = classify(balanced)
-    top, second = sorted(result["scores"].values(), reverse=True)[:2]
 
-    assert top - second < 8
-    assert result["label"].endswith(BLENDED_NOUN), "no axis is claimed"
+def population(around: dict[str, int], spread: int = 12) -> Reference:
+    """A band of players scattered around a centre, as the reference sees them.
+
+    Written out rather than mocked because the whole point of the rule is that
+    the cut is a share of a real distribution: a Reference with made-up
+    percentiles could be made to say anything.
+    """
+    samples = []
+    for step in range(60):
+        drift = (step % 5 - 2) * spread // 2
+        samples.append(
+            {
+                POSITIONAL: around[POSITIONAL] + drift,
+                AGGRESSIVE: around[AGGRESSIVE] - drift,
+                TACTICAL: around[TACTICAL],
+            }
+        )
+    return summarise("blitz", 1400, samples)
+
+
+def test_only_the_middle_of_a_population_is_an_all_rounder() -> None:
+    """The label is a claim about where somebody sits among players like them,
+    so it needs a population to sit in the middle of. The old rule was a margin
+    between the top two axes, which the three scores summing to 100 made the
+    default outcome rather than the exception."""
+    centred = classify(MIDDLING)["scores"]
+
+    result = classify(MIDDLING, population(centred))
+
+    assert result["centre"]["centrist"] is True
+    assert result["label"].endswith(BLENDED_NOUN)
     assert result["label"] == "Sharp All-Rounder", "the repertoire still names them"
+
+
+def test_a_player_away_from_the_centre_gets_their_leading_axis() -> None:
+    """Same scores, a population they are nowhere near."""
+    elsewhere = {POSITIONAL: 20, AGGRESSIVE: 65, TACTICAL: 15}
+
+    result = classify(MIDDLING, population(elsewhere))
+
+    assert result["centre"]["centrist"] is False
+    assert not result["label"].endswith(BLENDED_NOUN)
+    assert result["leaning"] in AXES
+
+
+def test_without_a_population_nobody_is_called_average() -> None:
+    """A band we cannot see is not evidence that somebody is in the middle of
+    it. The leading axis stands instead, which is the honest fallback."""
+    result = classify(MIDDLING)
+
+    assert result["centre"] is None
+    assert not result["label"].endswith(BLENDED_NOUN)
+
+
+def test_at_most_a_sixth_of_a_band_can_be_an_all_rounder() -> None:
+    """The rule the label exists to enforce. Every player in a synthetic band is
+    classified against that band's own reference; All-Rounder is a percentile
+    cut, so its share is bounded by construction rather than by luck."""
+    band = [
+        Signals(
+            games=200,
+            **tags({"sharp": sharp, "closed": 100 - sharp}, 200),
+            avg_plies=40.0 + sharp * 0.6,
+            decisive=190,
+            draws=10,
+            forced_endings=190 - sharp,
+            flagged=sharp // 2,
+            avg_opening_captures=sharp / 40,
+        )
+        for sharp in range(1, 100)
+    ]
+    scores = [classify(signals)["scores"] for signals in band]
+    reference = summarise("blitz", 1400, scores)
+
+    labels = [classify(signals, reference)["label"] for signals in band]
+    centrists = [label for label in labels if label.endswith(BLENDED_NOUN)]
+
+    assert len(centrists) / len(labels) <= CENTRIST_SHARE + 0.02
+    assert len(set(labels)) > 1, "a band that all reads the same is not a classifier"
 
 
 def test_a_repertoire_of_only_descriptive_tags_abstains() -> None:

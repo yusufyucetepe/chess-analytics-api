@@ -8,7 +8,8 @@ than being retyped five times.
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import ARRAY, ColumnElement, Integer, func
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 
 from app.db.models import Game, Result
 
@@ -33,6 +34,15 @@ def result_counts() -> tuple[Any, Any, Any]:
         func.count().filter(Game.result == Result.DRAW).label("draws"),
         func.count().filter(Game.result == Result.LOSS).label("losses"),
     )
+
+
+def first(value: Any, *order: Any) -> Any:
+    """The first ``value`` in ``order``, as an aggregate over the group.
+
+    Postgres has no ``FIRST()``: sorting inside ``array_agg`` and taking element
+    one is the standard way, and it keeps a grouped query to a single pass.
+    """
+    return func.array_agg(aggregate_order_by(value, *order), type_=ARRAY(Integer))[1]
 
 
 def record(row: Any) -> dict[str, Any]:

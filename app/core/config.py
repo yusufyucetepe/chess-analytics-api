@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     report_max_game_s: int = 4 * 3600
 
     # Worker
+    #: Hour (UTC) at which the player-type reference population is recomputed.
+    #: Daily is often enough: the centre of a rating band moves with the number
+    #: of reports built, which is not a fast-moving number.
+    style_reference_hour: int = 4
     #: How many times arq may run one report job. Only network faults get a
     #: second attempt; a username that doesn't exist fails on the first.
     worker_max_tries: int = 3

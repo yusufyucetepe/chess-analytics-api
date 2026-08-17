@@ -3,12 +3,13 @@
 import logging
 from typing import Any, ClassVar
 
+from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import settings
 from app.core.redis import close_redis
 from app.db.base import SessionLocal, engine
-from app.worker.jobs import build_report
+from app.worker.jobs import build_report, refresh_style_reference
 from app.worker.queue import redis_settings
 
 logging.basicConfig(
@@ -43,6 +44,17 @@ class WorkerSettings:
     """
 
     functions: ClassVar[list[Any]] = [build_report]
+    #: The style reference is a cache of a population, so it is rebuilt on a
+    #: clock rather than by anything a user does. `run_at_startup` so a fresh
+    #: deployment -- or a dev box -- has a centre without waiting for the hour.
+    cron_jobs: ClassVar[list[Any]] = [
+        cron(
+            refresh_style_reference,
+            hour=settings.style_reference_hour,
+            minute=0,
+            run_at_startup=True,
+        )
+    ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings: RedisSettings = redis_settings()
