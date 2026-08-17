@@ -9,7 +9,9 @@
     </p>
   {% endif %}
 
-  <h2>You play like a&hellip;</h2>
+  {# Not "You play like a...": half the labels start with "The", and the plain
+     ones read as a sentence that never finishes. #}
+  <h2>Your Archetype:</h2>
 
   {% if type.label %}
     <p class="archetype">{{ type.label }}</p>

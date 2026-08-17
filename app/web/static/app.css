@@ -328,7 +328,13 @@ table.grid thead th:first-child { text-align: left; }
 }
 .columns h4 { margin: 0 0 .25rem; font-size: 1rem; }
 
-.systems { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin-top: 1.75rem; }
+/* `align-items: start` rather than the grid default of `stretch`: opening one
+   card's drill-down would otherwise stretch every card sharing its row to the
+   same height, and the rest of the row would grow a blank space. */
+.systems {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  align-items: start; gap: 1rem; margin-top: 1.75rem;
+}
 .system { background: var(--page); border-radius: var(--radius); padding: 1rem 1.1rem; }
 .system h3 { margin: 0; font-size: 1.05rem; }
 .system .fine { margin: 0 0 .5rem; }
