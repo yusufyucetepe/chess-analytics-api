@@ -128,7 +128,12 @@ class Game(Base):
 
     result: Mapped[Result] = mapped_column(pg_enum(Result, "result"))
     #: Lichess termination: mate, resign, outoftime, draw, stalemate, ...
-    status: Mapped[str] = mapped_column(String(24))
+    #: Unbounded on purpose. The vocabulary is Lichess's, not ours -- one member
+    #: is already 25 characters (``insufficientMaterialClaim``) and nothing says
+    #: the next one is shorter. Nothing filters or indexes on its length, and in
+    #: Postgres an unbounded varchar costs the same as a capped one, so a length
+    #: here buys nothing and one day loses a whole year's ingest to one game.
+    status: Mapped[str] = mapped_column(Text)
 
     eco: Mapped[str | None] = mapped_column(String(3))
     opening_name: Mapped[str | None] = mapped_column(String(160))

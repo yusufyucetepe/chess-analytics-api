@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Chess Wrapped"
+    app_name: str = "Chessona"
     debug: bool = False
 
     # Postgres. asyncpg driver for the app, psycopg-free sync URL derived for Alembic.
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     lichess_base_url: str = "https://lichess.org"
     lichess_token: str | None = None
     # Lichess asks for a descriptive UA with a way to contact the operator.
-    lichess_user_agent: str = "chess-wrapped/0.1 (+https://github.com/yusuf/chess-wrapped)"
+    lichess_user_agent: str = "chessona/0.1 (+https://github.com/yusuf/chessona)"
     lichess_timeout_s: float = 30.0
     lichess_stream_timeout_s: float = 600.0
     lichess_max_retries: int = 4

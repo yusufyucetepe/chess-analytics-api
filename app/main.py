@@ -37,7 +37,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        description="Your Lichess year, wrapped.",
+        description="Your Lichess year, read back to you.",
         lifespan=lifespan,
     )
 

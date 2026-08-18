@@ -1,3 +1,3 @@
-# Chess Wrapped
+# Chessona
 
-Your Lichess year, wrapped.
+Your Lichess year, read back to you.

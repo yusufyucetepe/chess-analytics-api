@@ -18,12 +18,13 @@ import respx
 from arq.worker import Worker
 from httpx import AsyncClient
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core import locks
 from app.core.config import settings
 from app.db.base import get_session
-from app.db.models import Player, ReportStatus
+from app.db.models import Game, Player, ReportStatus
 from app.lichess import client as client_module
 from app.main import create_app
 from app.report import cache, service
@@ -448,3 +449,78 @@ async def test_a_rerun_of_the_same_report_converges(
         assert report.games_total == FIXTURE_GAMES
         player = await check.get(Player, report.player_id)
         assert player is not None
+
+
+# ----------------------------------------------------------- awkward payloads
+
+
+def games_with(**fields: Any) -> str:
+    """The recorded export with one game's fields overwritten."""
+    lines = games_in_window().splitlines()
+    first = json.loads(lines[0]) | fields
+    return "\n".join([json.dumps(first), *lines[1:]]) + "\n"
+
+
+@respx.mock
+async def test_a_status_longer_than_the_column_was_does_not_lose_the_year(
+    api: AsyncClient, sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    """``insufficientMaterialClaim`` is 25 characters and the column was 24.
+
+    One game ended that way and the batch insert took the player's whole year
+    down with it -- the export writes in batches, so a single unstorable row
+    fails everything around it too.
+    """
+    mock_lichess()
+    respx.get(path=f"/api/games/user/{USERNAME}").mock(
+        return_value=httpx.Response(
+            200,
+            text=games_with(status="insufficientMaterialClaim"),
+            headers={"content-type": "application/x-ndjson"},
+        )
+    )
+    report_id = await request_report(api)
+
+    await run_worker(sessions)
+
+    async with sessions() as check:
+        report = await service.get_report(check, report_id)
+        assert report is not None
+        assert report.status is ReportStatus.DONE
+        assert report.games_total == FIXTURE_GAMES
+        stored = await check.execute(
+            select(Game.status).where(Game.status == "insufficientMaterialClaim")
+        )
+        assert stored.scalar_one() == "insufficientMaterialClaim", "stored whole, not truncated"
+
+
+@respx.mock
+async def test_a_database_error_mid_ingest_still_marks_the_report_failed(
+    api: AsyncClient, sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A row Postgres rejects used to leave the report `running` for ever.
+
+    Rolling back expires every object the transaction touched, so reading
+    ``report.id`` for the log line reloaded it -- synchronously, which on an
+    async session raises MissingGreenlet. That replaced the real exception and
+    escaped before anything was marked failed.
+    """
+    monkeypatch.setattr(settings, "worker_max_tries", 1)
+    mock_lichess()
+    respx.get(path=f"/api/games/user/{USERNAME}").mock(
+        return_value=httpx.Response(
+            200,
+            # Longer than `opening_name` holds, so Postgres rejects the insert.
+            text=games_with(opening={"eco": "C50", "name": "x" * 200, "ply": 4}),
+            headers={"content-type": "application/x-ndjson"},
+        )
+    )
+    report_id = await request_report(api)
+
+    await run_worker(sessions)
+
+    async with sessions() as check:
+        report = await service.get_report(check, report_id)
+        assert report is not None
+        assert report.status is ReportStatus.FAILED
+        assert report.error, "a stranger has to be told something"

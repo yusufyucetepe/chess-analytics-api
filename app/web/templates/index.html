@@ -5,8 +5,22 @@
   <h1>What did your chess year look like?</h1>
   <p class="lede">
     Type a Lichess username. We read the last twelve months of rated games and
-    hand back the openings, the hours, the streaks and the tilt.
+    read the year back to you.
   </p>
+
+  {# In the order the report itself is read, so the list doubles as its
+     contents page. #}
+  <ul class="promises">
+    <li><b>Your archetype</b> &mdash; where you sit between positional,
+      aggressive and tactical, and the grandmasters you share it with.</li>
+    <li><b>Your accuracy</b> &mdash; centipawn loss, blunders and mistakes over
+      the games you had analysed.</li>
+    <li><b>Your opening repertoire</b> &mdash; the systems you actually play,
+      and the lines quietly costing you points.</li>
+    {# Named here because it is the next thing being built, and marked as such
+       rather than promised: the report does not carry puzzles yet. #}
+    <li><b>Puzzles from your own mistakes</b> &mdash; coming next.</li>
+  </ul>
 
   {% include "partials/form.html" %}
 

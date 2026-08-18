@@ -123,6 +123,18 @@ footer.site { border-top: 1px solid var(--rule); color: var(--muted); font-size:
 .fine { font-size: .82rem; color: var(--muted); }
 .hint { font-size: .9rem; color: var(--muted); }
 
+.promises { list-style: none; padding: 0; margin: 1.5rem 0 0; max-width: 42rem; }
+.promises li {
+  padding-left: 1.1rem; margin: .55rem 0;
+  font-size: .95rem; color: var(--muted); position: relative;
+}
+/* `--ink` rather than a literal white: it is white on the dark theme and
+   near-black on the light one, where a white bullet would be invisible. */
+.promises li::before {
+  content: "\2022"; position: absolute; left: 0; color: var(--ink);
+}
+.promises b { color: var(--ink); font-weight: 600; }
+
 .ask { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1.75rem 0 1rem; }
 .ask input {
   flex: 1 1 18rem;
@@ -310,6 +322,10 @@ table.grid th[scope="row"] { text-align: left; font-weight: 500; }
    draws a rule of its own, and two parallel lines with a gap between them read
    as one more row of the table with nothing in it. */
 table.grid tbody tr:last-child th, table.grid tbody tr:last-child td { border-bottom: 0; }
+/* And the same gap on both sides of the table. A subhead's 2.25rem of air is
+   there to separate one block from the next; landing it under a table's last
+   row instead makes a row-height of blank inside the block. */
+table.grid + .subhead { margin-top: 1rem; }
 table.grid thead th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
 /* The numbers are right-aligned, but the first column holds names and moves --
    its heading belongs over the start of them, not over their far end. */

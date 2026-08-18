@@ -166,6 +166,14 @@ async def _fail(
     # explain why. Only the last attempt writes `failed`, so a poller never sees
     # it fail and then quietly un-fail.
     #
+    # Read before the rollback below, not after. `rollback` expires every object
+    # the transaction touched, and the next attribute read reloads it -- from a
+    # synchronous __get__, which on an async session raises MissingGreenlet.
+    # That exception would replace the real one and escape this function, so the
+    # report would stay `running` for ever: precisely what the retry budget
+    # above exists to prevent, defeated by a logging argument.
+    report_id, username = report.id, player.username_lower
+
     # The session may be mid-transaction from the failed ingest.
     await session.rollback()
 
@@ -174,7 +182,7 @@ async def _fail(
         delay = settings.worker_retry_delay_s * attempt
         logger.warning(
             "report %s failed on attempt %d/%d (%s); retrying in %ds",
-            report.id,
+            report_id,
             attempt,
             settings.worker_max_tries,
             exc,
@@ -184,10 +192,10 @@ async def _fail(
 
     logger.exception(
         "report %s for %s failed permanently after %d attempt(s)",
-        report.id,
-        player.username_lower,
+        report_id,
+        username,
         attempt,
         exc_info=exc,
     )
     await service.mark_failed(session, report, user_message(exc))
-    return {"report_id": str(report.id), "status": "failed", "retryable": retryable}
+    return {"report_id": str(report_id), "status": "failed", "retryable": retryable}
