@@ -210,9 +210,15 @@ button:disabled { opacity: .55; cursor: progress; }
 .archetype--shy { color: var(--muted); font-weight: 600; }
 .signature { max-width: 40rem; margin: 1rem auto; }
 
+.wdl-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  flex-wrap: wrap; gap: .5rem;
+  font-size: .9rem; color: var(--muted); margin: 0 0 .5rem;
+}
+.wdl-head b { color: var(--ink); font-size: 1.05rem; }
 .wdl {
-  display: flex; height: 1.75rem;
-  border-radius: 6px; overflow: hidden;
+  display: flex; height: .75rem;
+  border-radius: 999px; overflow: hidden;
   margin: .5rem 0 0;
 }
 .wdl span { display: block; min-width: 2px; }
@@ -222,11 +228,8 @@ button:disabled { opacity: .55; cursor: progress; }
 
 .wdl-key {
   display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: baseline;
-  font-size: .9rem; color: var(--muted); margin: 1.25rem 0 0;
+  font-size: .85rem; color: var(--muted); margin: .6rem 0 0;
 }
-.wdl-key b { color: var(--ink); font-size: 1.05rem; }
-.wdl-key .share { font-variant-numeric: tabular-nums; }
-.wdl-key .score { margin-left: auto; }
 .swatch {
   display: inline-block; width: .65rem; height: .65rem;
   border-radius: 3px; margin-right: .4rem;
@@ -241,17 +244,55 @@ button:disabled { opacity: .55; cursor: progress; }
 .key-aggressive { color: var(--aggressive-ink); }
 .key-tactical { color: var(--tactical-ink); }
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: .75rem; margin: 1.25rem 0; }
-.tile { background: var(--page); border-radius: var(--radius); padding: 1rem; text-align: center; }
-.tile b { display: block; font-size: 1.6rem; letter-spacing: -.02em; }
-.tile span { font-size: .8rem; color: var(--muted); }
+/* Numbers on the card's own background, divided by rules rather than boxed:
+   they share a card with the record, and four filled tiles read as four more
+   headline figures.
 
-.signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; margin: 1.5rem 0 .5rem; }
+   Dividers are the 1px grid gap with the rule colour showing through from
+   behind, rather than a border on each cell: the gap draws every divider the
+   layout needs, in both directions, and none along the edges. The negative
+   inline margin is the card's own padding, so the leftmost number lines up with
+   the heading above it.
+
+   Four columns then two, rather than `auto-fit`: auto-fit fits as many as will
+   go, which at some widths is three, and the fourth then sits alone on a row of
+   its own with two cells' worth of blank beside it. */
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--rule);
+  border-top: 1px solid var(--rule);
+  margin: 1.25rem -1.5rem .5rem;
+}
+@media (max-width: 40rem) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+.stat { background: var(--card); padding: 1rem 1.5rem; }
+.stat b { display: block; font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; }
+.stat span { font-size: .85rem; color: var(--muted); }
+
+/* Four fixed columns rather than `auto-fit`, for the same reason as `.stats`:
+   auto-fit fits as many as will go, and at the widths where that is three the
+   fourth signal sits alone on a row with three cells' worth of blank beside
+   it. */
+.signals { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin: 1.5rem 0 .5rem; }
 .signals div { background: var(--page); border-radius: var(--radius); padding: .75rem; }
 .signals dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .signals dd { margin: .15rem 0 0; font-weight: 700; }
+/* Same boxes, one line longer: the detail under the figure is what makes a
+   highlight a highlight rather than another statistic. Auto-fit here, because
+   a player with no wins has no best win and no streak either -- one box should
+   not leave two empty tracks beside it. */
+.highlights {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  margin: 1.25rem 0 1.75rem;
+}
+.highlights .note { font-weight: 400; font-size: .8rem; color: var(--muted); }
 
-.facts p { margin: .6rem 0; }
+@media (max-width: 40rem) {
+  .signals { grid-template-columns: repeat(2, 1fr); }
+  .highlights { grid-template-columns: 1fr; }
+}
+
 .caveat {
   background: var(--page);
   border-left: 3px solid var(--accent);
@@ -265,10 +306,23 @@ button:disabled { opacity: .55; cursor: progress; }
 table.grid { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .92rem; }
 table.grid th, table.grid td { padding: .5rem .6rem; text-align: right; border-bottom: 1px solid var(--rule); }
 table.grid th[scope="row"] { text-align: left; font-weight: 500; }
+/* No rule under the last row. The next thing in the card is a subhead, which
+   draws a rule of its own, and two parallel lines with a gap between them read
+   as one more row of the table with nothing in it. */
+table.grid tbody tr:last-child th, table.grid tbody tr:last-child td { border-bottom: 0; }
 table.grid thead th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
 /* The numbers are right-aligned, but the first column holds names and moves --
    its heading belongs over the start of them, not over their far end. */
 table.grid thead th:first-child { text-align: left; }
+/* A share bar in its own column, sized against the busiest row. The ratio
+   between the time controls is the part of this table read at a glance; the
+   counts beside it are for the reader who wants the actual number. */
+.grid--bars .bar-cell { width: 30%; padding-left: 0; }
+.grid--bars .bar {
+  display: block; height: .4rem; min-width: 3px;
+  border-radius: 999px; background: var(--accent);
+}
+.grid--bars .record { color: var(--muted); font-variant-numeric: tabular-nums; }
 .eco { font-family: var(--mono); font-size: .85em; color: var(--muted); }
 .up { color: var(--win); font-weight: 600; }
 .down { color: var(--loss); font-weight: 600; }
@@ -326,6 +380,9 @@ table.grid thead th:first-child { text-align: left; }
   font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
   color: var(--muted); font-weight: 600;
 }
+/* The first subhead in a card follows the card's own heading, where a rule
+   would draw a line immediately under it and read as a stray underline. */
+.subhead--lead { margin-top: 1.25rem; padding-top: 0; border-top: 0; }
 .columns h4 { margin: 0 0 .25rem; font-size: 1rem; }
 
 /* `align-items: start` rather than the grid default of `stretch`: opening one

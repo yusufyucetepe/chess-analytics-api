@@ -95,7 +95,8 @@ def test_a_thin_year_says_so_instead_of_inventing_numbers(request_: Request) -> 
     assert "Not enough games to call it" in html
     assert "too few to say anything honest" in html
     assert "Best win" not in html
-    assert "Longest win streak" not in html
+    assert "Longest streak" not in html
+    assert "Highlights" not in html, "an empty highlight row rather than none"
 
 
 def test_a_year_with_no_games_stops_after_the_header(request_: Request) -> None:
@@ -109,8 +110,91 @@ def test_the_quality_caveat_travels_with_the_numbers(request_: Request) -> None:
     """The brief's rule: a coverage figure never appears without its denominator."""
     html = render_report(request_, full_payload())
 
-    assert "83.81" in html
+    assert "83.8" in html, "the accuracy, at one decimal"
     assert "Based on the 45 of 357 games that were analysed." in html
+
+
+def test_the_volume_numbers_are_said_once(request_: Request) -> None:
+    """The tiles repeated the hero verbatim. The hero won, and took the move
+    count with it, so the card opens on the record instead."""
+    html = render_report(request_, full_payload())
+    hero = html[: html.index("<h2>The Year in Numbers</h2>")]
+
+    assert "rated games" not in html[html.index("<h2>The Year in Numbers</h2>") :]
+    assert "hours at the board" in hero
+    assert "12,844" in hero, "moves, now part of the lede"
+
+
+def test_the_highlights_lead_with_the_number(request_: Request) -> None:
+    """Each highlight is a figure with its detail under it, not a sentence: the
+    rating gap is what makes a win the best one, so the gap is the figure."""
+    html = render_report(request_, full_payload())
+    highlights = html[html.index("Highlights") : html.index('class="wdl-head"')]
+
+    assert "<dd>+101</dd>" in highlights, "the rating gap, signed"
+    assert "<dd>32 wins</dd>" in highlights
+    assert "<dd>90 games</dd>" in highlights
+    assert "Konevlad" in highlights and "3,215" not in highlights, "ratings are not counts"
+
+
+def test_a_best_win_with_no_rating_gap_still_has_a_number(request_: Request) -> None:
+    """Provisional opponents have no gap to show, and a highlight with an empty
+    space where its figure goes is worse than one showing a smaller fact."""
+    payload = full_payload()
+    payload["sections"]["headline"]["best_win"]["rating_gap"] = None
+
+    html = render_report(request_, payload)
+
+    assert "<dd>3215</dd>" in html
+    assert "+101" not in html
+
+
+def test_the_trivial_time_controls_share_a_row(request_: Request) -> None:
+    """Two classical games in a year are not worth a row, and their score is a
+    percentage of noise."""
+    payload = full_payload()
+    payload["sections"]["headline"]["by_perf"] += [
+        {"perf": "classical", "games": 2, "wins": 1, "draws": 0, "losses": 1, "score": 0.5},
+        {"perf": "ultraBullet", "games": 1, "wins": 0, "draws": 0, "losses": 1, "score": 0.0},
+    ]
+
+    html = render_report(request_, payload)
+
+    assert ">Other</th>" in html
+    assert "classical, ultrabullet" in html, "named, since their record is meaningless"
+    assert ">Classical</th>" not in html
+
+
+def test_a_lone_small_time_control_keeps_its_name(request_: Request) -> None:
+    """An "Other" row naming one perf says strictly less than that perf's row."""
+    payload = full_payload()
+    payload["sections"]["headline"]["by_perf"] += [
+        {"perf": "classical", "games": 2, "wins": 1, "draws": 0, "losses": 1, "score": 0.5}
+    ]
+
+    html = render_report(request_, payload)
+
+    assert ">Classical</th>" in html
+    assert ">Other</th>" not in html
+
+
+def test_the_year_and_its_move_quality_are_one_section(request_: Request) -> None:
+    """Both count the same games, so they share a card: quality is a subhead
+    under the volume numbers rather than a heading of its own."""
+    html = render_report(request_, full_payload())
+
+    assert "<h2>Move quality</h2>" not in html
+    assert '<h3 class="subhead">Move quality</h3>' in html
+    body = html[html.index("<h2>The Year in Numbers</h2>") :]
+    assert body.index("Move quality") < body.index("</section>"), "inside the same card"
+
+
+def test_the_quality_block_still_says_no_when_the_sample_is_thin(request_: Request) -> None:
+    """Folding it into another card must not turn 'we cannot say' into silence."""
+    html = render_report(request_, sparse_payload())
+
+    assert '<h3 class="subhead">Move quality</h3>' in html
+    assert "We never run our own engine" in html
 
 
 def test_the_disclaimer_is_on_the_page_not_just_in_the_payload(request_: Request) -> None:
@@ -161,7 +245,7 @@ def test_the_openings_and_the_repertoire_are_one_section(request_: Request) -> N
     html = render_report(request_, full_payload())
 
     assert html.count("<h2>Opening Repertoire</h2>") == 1
-    assert html.index('class="stack"') < html.index("Most played") < html.index("As white")
+    assert html.index('class="stack"') < html.index("Most played") < html.index("As White")
 
 
 def test_the_best_and_worst_openings_are_off_the_page(request_: Request) -> None:
@@ -245,6 +329,19 @@ def test_the_player_type_donut_gets_its_canvas(request_: Request) -> None:
     assert "46" in html
 
 
+def test_the_rating_line_ends_on_the_rating_the_year_ended_on(request_: Request) -> None:
+    """The last point is read as "this is me now", so it has to be the closing
+    rating rather than the last month's average."""
+    sections = full_payload()["sections"]
+    spec = chart_data(sections)["rating"]
+
+    for line in spec["series"]:
+        stats = sections["progression"]["by_perf"][line["perf"]]
+        played = [point for point in line["points"] if point is not None]
+        assert played[-1] == stats["end"]
+        assert played == [month["end"] for month in stats["series"]]
+
+
 @pytest.mark.parametrize(
     ("template", "context", "expected"),
     [
@@ -326,6 +423,53 @@ def test_commas(value: Any, expected: str) -> None:
 )
 def test_plural(value: Any, expected: str) -> None:
     assert templating.plural(value, "opening") == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("blitz", "Blitz"),
+        ("ultraBullet", "UltraBullet"),
+        ("kingOfTheHill", "King of the Hill"),
+        # A perf we have never seen still gets a capital rather than an
+        # exception: the key comes from Lichess, not from a list of ours.
+        ("shogi", "Shogi"),
+        (None, "--"),
+    ],
+)
+def test_perf_names_are_capitalised(value: Any, expected: str) -> None:
+    assert templating.perf(value) == expected
+
+
+def test_the_time_controls_are_labels_in_tables_and_words_in_sentences(
+    request_: Request,
+) -> None:
+    """Capitalised where they head a column or a legend, lowercase where they sit
+    inside a sentence -- "Your Blitz rating went" reads as a proper noun that
+    isn't one."""
+    html = render_report(request_, full_payload())
+
+    assert ">Bullet</th>" in html, "the record table"
+    assert '"label":"Bullet"' in html, "the chart legend"
+    assert "Your bullet rating went" in html, "the rating lede"
+    assert ">bullet</th>" not in html
+
+
+@pytest.mark.parametrize(
+    ("value", "digits", "expected"),
+    [(84.44, 1, "84.4"), (85.0, 1, "85.0"), (1.9512, 2, "1.95"), (None, 1, "--")],
+)
+def test_decimal(value: Any, digits: int, expected: str) -> None:
+    assert templating.decimal(value, digits) == expected
+
+
+def test_a_streak_inside_one_day_is_dated_once(request_: Request) -> None:
+    """The fixture's streak starts and ends on 4 January, which is what a bullet
+    session looks like."""
+    html = render_report(request_, full_payload())
+
+    assert "4 Jan 2026 to 4 Jan 2026" not in html
+    assert "<dd>32 wins</dd>" in html
 
 
 def test_moves_are_numbered_from_the_first_move() -> None:

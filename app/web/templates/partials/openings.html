@@ -105,7 +105,7 @@
     {% for colour in ["white", "black"] %}
       {% set side = openings.by_color[colour] %}
       <div>
-        <h4>As {{ colour }}</h4>
+        <h4>As {{ colour|capitalize }}</h4>
         <p class="fine">{{ side.games|commas }} games across
            {{ side.distinct_ecos|plural("opening") }}.</p>
         {% if side.top %}

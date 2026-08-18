@@ -4,7 +4,9 @@
   {% if progression.main_perf %}
     {% set main = progression.by_perf[progression.main_perf] %}
     <p class="lede">
-      Your {{ progression.main_perf }} rating went
+      {# Lowercased: in a sentence these are common nouns. The filter still runs
+         first so "kingOfTheHill" reads as words rather than as a key. #}
+      Your {{ progression.main_perf|perf|lower }} rating went
       {{ main.start }} &rarr; {{ main.end }} over the year
       ({{ main.net|signed }}), peaking at {{ main.peak }}.
     </p>
@@ -19,9 +21,9 @@
             <th scope="col">Net</th><th scope="col">Peak</th></tr>
       </thead>
       <tbody>
-        {% for perf, stats in progression.by_perf.items() %}
+        {% for name, stats in progression.by_perf.items() %}
           <tr>
-            <th scope="row">{{ perf }}</th>
+            <th scope="row">{{ name|perf }}</th>
             <td>{{ stats.games|commas }}</td>
             <td>{{ stats.start }}</td>
             <td>{{ stats.end }}</td>
@@ -33,8 +35,8 @@
     </table>
 
     <p class="fine">
-      Taken from the rating carried into each game, so the curve is sampled at
-      every game rather than once a day, and averaged by month.
+      Each point is where your rating stood after the last game of that month,
+      so the line ends on the rating you finished the year with.
       {%- if progression.get('provisional_games') %}
         Leaves out {{ progression.provisional_games|commas }} games played on a
         provisional rating &mdash; Lichess starts everyone at a placeholder and

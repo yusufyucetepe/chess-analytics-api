@@ -1,63 +1,88 @@
 <section class="card">
-  <h2>The year in numbers</h2>
+  <h2>The Year in Numbers</h2>
+
+  {# No tiles for games, hours and days: the hero says all three a screen
+     higher. Moves moved up there with them rather than keeping a row of its
+     own. #}
+  {% if headline.best_win or headline.longest_win_streak or headline.busiest_day %}
+    <h3 class="subhead subhead--lead">Highlights</h3>
+    {# The same boxes as the classifier's signals up the page -- `.signals`
+       carries the layout, and `.highlights` only adds the second line. #}
+    <dl class="signals highlights">
+      {% if headline.best_win %}
+        {% set win = headline.best_win %}
+        <div>
+          <dt>Best win</dt>
+          {# The rating gap is the number: beating someone is ordinary, beating
+             someone 247 points above you is the highlight. Where the gap is
+             unknown the opponent's rating carries the line instead. #}
+          <dd>{{ win.rating_gap|signed if win.rating_gap is not none else win.opponent_rating }}</dd>
+          <dd class="note">
+            <a href="{{ win.url }}" rel="noopener">{{ win.opponent }}</a>
+            {%- if win.rating_gap is not none %} ({{ win.opponent_rating }}){% endif %},
+            {{ win.color }}, {{ win.played_at|day }}
+          </dd>
+        </div>
+      {% endif %}
+
+      {% if headline.longest_win_streak %}
+        {% set streak = headline.longest_win_streak %}
+        <div>
+          <dt>Longest streak</dt>
+          <dd>{{ streak.games|plural("win") }}</dd>
+          {# A streak inside one day is common enough at bullet, and "1 Aug 2026
+             to 1 Aug 2026" reads as a bug. #}
+          <dd class="note">
+            {%- if streak.start|day == streak.end|day -%}
+              {{ streak.start|day }}
+            {%- else -%}
+              {{ streak.start|day }} to {{ streak.end|day }}
+            {%- endif -%}
+          </dd>
+        </div>
+      {% endif %}
+
+      {% if headline.busiest_day %}
+        {% set busiest = headline.busiest_day %}
+        <div>
+          <dt>Busiest day</dt>
+          <dd>{{ busiest.games|plural("game") }}</dd>
+          <dd class="note">{{ busiest.date|day }} &mdash;
+            {{ busiest.wins }}W&nbsp;{{ busiest.draws }}D&nbsp;{{ busiest.losses }}L</dd>
+        </div>
+      {% endif %}
+    </dl>
+  {% endif %}
 
   {% include "partials/wdl.html" %}
 
-  <div class="tiles">
-    <div class="tile"><b>{{ headline.games|commas }}</b><span>rated games</span></div>
-    <div class="tile"><b>{{ headline.hours_played|commas }}</b><span>hours played</span></div>
-    <div class="tile"><b>{{ headline.moves_played|commas }}</b><span>moves made</span></div>
-    <div class="tile"><b>{{ headline.days_played|commas }}</b><span>days at the board</span></div>
-  </div>
-
-  <div class="facts">
-    {% if headline.best_win %}
-      {% set win = headline.best_win %}
-      <p>
-        <b>Best win.</b>
-        <a href="{{ win.url }}" rel="noopener">{{ win.opponent }}</a>
-        ({{ win.opponent_rating }}) as {{ win.color }} in {{ win.perf }}, {{ win.played_at|day }}
-        {%- if win.rating_gap is not none %} &mdash; {{ win.rating_gap|signed }} on your own rating{% endif %}.
-      </p>
-    {% endif %}
-
-    {% if headline.longest_win_streak %}
-      {% set streak = headline.longest_win_streak %}
-      <p>
-        <b>Longest win streak.</b> {{ streak.games }} in a row,
-        {{ streak.start|day }} to {{ streak.end|day }}.
-      </p>
-    {% endif %}
-
-    {% if headline.busiest_day %}
-      {% set busiest = headline.busiest_day %}
-      <p>
-        <b>Busiest day.</b> {{ busiest.date|day }} &mdash; {{ busiest.games }} games,
-        {{ busiest.wins }}W&nbsp;{{ busiest.draws }}D&nbsp;{{ busiest.losses }}L.
-      </p>
-    {% endif %}
-  </div>
-
-  {% if headline.by_perf %}
-    <table class="grid">
+  {% set rows = headline.by_perf|perf_rows(headline.games) %}
+  {% if rows %}
+    <h3 class="subhead">Time controls</h3>
+    <table class="grid grid--bars">
       <caption class="visually-hidden">Record by time control</caption>
       <thead>
-        <tr><th scope="col">Time control</th><th scope="col">Games</th>
-            <th scope="col">W</th><th scope="col">D</th><th scope="col">L</th>
+        <tr><th scope="col">Format</th><th scope="col"><span class="visually-hidden">Share</span></th>
+            <th scope="col">Games</th><th scope="col">W / D / L</th>
             <th scope="col">Score</th></tr>
       </thead>
       <tbody>
-        {% for perf in headline.by_perf %}
+        {# Widths are relative to the busiest row rather than to the year, so a
+           player who only plays blitz still gets a bar rather than a full one
+           and nothing else. #}
+        {% set most = rows|map(attribute='games')|max %}
+        {% for row in rows %}
           <tr>
-            <th scope="row">{{ perf.perf }}</th>
-            <td>{{ perf.games|commas }}</td>
-            <td>{{ perf.wins|commas }}</td>
-            <td>{{ perf.draws|commas }}</td>
-            <td>{{ perf.losses|commas }}</td>
-            <td>{{ perf.score|percent }}</td>
+            <th scope="row">{{ row.label }}</th>
+            <td class="bar-cell"><span class="bar" style="width: {{ (row.games / most * 100)|round(1) }}%"></span></td>
+            <td>{{ row.games|commas }}</td>
+            <td class="record">{{ row.record }}</td>
+            <td>{{ row.score|percent if row.score is not none else "&mdash;"|safe }}</td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
   {% endif %}
+
+  {% include "partials/quality.html" %}
 </section>

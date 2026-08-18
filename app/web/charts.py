@@ -8,6 +8,8 @@ embedding the lot would put tens of kilobytes into the HTML to draw three lines.
 
 from typing import Any
 
+from app.web.templating import perf as perf_name
+
 #: The order the donut's slices are drawn in, and the order the key beside it
 #: lists them. Matches ``player_type_weights.AXES``, spelled out here so the
 #: chart layer does not import the classifier for three strings.
@@ -46,8 +48,16 @@ def _rating(progression: dict[str, Any] | None) -> dict[str, Any]:
     for perf, stats in by_perf.items():
         points: list[float | None] = [None] * len(months)
         for point in stats["series"]:
-            points[index[point["month"]]] = point["average"]
-        series.append({"perf": perf, "points": points})
+            # The month's closing rating, not its average. An average is a
+            # summary of a month the player has left, so the final point sat
+            # somewhere in the middle of the last month and read as the current
+            # rating without being it. Closing ratings make the last point the
+            # last rating in the window, which is what the lede and the End
+            # column already say.
+            points[index[point["month"]]] = point["end"]
+        # `label` is what the legend prints and `perf` is what the sort below
+        # looks up: the same string capitalised would be a key that misses.
+        series.append({"perf": perf, "label": perf_name(perf), "points": points})
 
     # Busiest perf first: it is the one the eye should land on, and Chart.js
     # colours datasets in order.

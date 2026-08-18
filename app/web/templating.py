@@ -94,11 +94,80 @@ def plural(value: Any, noun: str, suffix: str = "s") -> str:
     return f"{commas(value)} {noun}{'' if value == 1 else suffix}"
 
 
+#: Lichess names its time controls in camelCase and prints them capitalised, so
+#: the raw key is what we store and this is what a reader should see. Only the
+#: irregular ones are listed; the rest just want a capital letter.
+PERF_NAMES = {
+    "ultraBullet": "UltraBullet",
+    "kingOfTheHill": "King of the Hill",
+    "racingKings": "Racing Kings",
+    "threeCheck": "Three-check",
+    "chess960": "Chess960",
+}
+
+
+def perf(value: Any) -> str:
+    """A Lichess perf key as a name: "ultraBullet" -> "UltraBullet"."""
+    if not value:
+        return "--"
+    return PERF_NAMES.get(value) or f"{value[:1].upper()}{value[1:]}"
+
+
+def perf_rows(rows: Any, total: Any, floor: float = 0.01) -> list[dict[str, Any]]:
+    """The record table's rows, with the negligible time controls merged into one.
+
+    Two classical games in a year do not deserve a row, and their score is a
+    percentage of noise printed to one decimal. They are merged only when more
+    than one is small enough for it -- an "Other" row that names a single perf
+    says strictly less than that perf's own row would.
+    """
+    listed = list(rows or [])
+    if not listed or not total:
+        return []
+    cutoff = total * floor
+    minor = [row for row in listed if row["games"] < cutoff]
+    if len(minor) < 2:
+        return [_perf_row(row) for row in listed]
+    major = (row for row in listed if row["games"] >= cutoff)
+    return [_perf_row(row) for row in major] + [
+        {
+            "label": "Other",
+            "games": sum(row["games"] for row in minor),
+            # The names, where a row that stood alone would show its record:
+            # over a handful of games, which they were is the more useful fact.
+            "record": ", ".join(perf(row["perf"]).lower() for row in minor),
+            "score": None,
+        }
+    ]
+
+
+def _perf_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "label": perf(row["perf"]),
+        "games": row["games"],
+        "record": f"{commas(row['wins'])} / {commas(row['draws'])} / {commas(row['losses'])}",
+        "score": row["score"],
+    }
+
+
 def percent(value: Any, digits: int = 1) -> str:
     """A 0..1 ratio as a percentage. The payload never stores these pre-formatted."""
     if value is None:
         return "--"
     return f"{value * 100:.{digits}f}%"
+
+
+def decimal(value: Any, digits: int = 1) -> str:
+    """A number at a fixed number of decimals.
+
+    The payload stores what the arithmetic produced -- an accuracy of 84.44,
+    an ACPL of 41.1 -- and how many of those digits are worth printing is a
+    presentation decision. Nothing is None here in practice, but a perf whose
+    analysed games all lack an accuracy figure would otherwise print "None%".
+    """
+    if value is None:
+        return "--"
+    return f"{value:.{digits}f}"
 
 
 def signed(value: Any) -> str:
@@ -138,7 +207,10 @@ def build_templates() -> Jinja2Templates:
             "commas": commas,
             "plural": plural,
             "moves": moves,
+            "perf": perf,
+            "perf_rows": perf_rows,
             "percent": percent,
+            "decimal": decimal,
             "signed": signed,
             "day": day,
             "clock": clock,

@@ -1,39 +1,35 @@
-{# The one section built on a biased sample, so the caveat is not a footnote --
-   it is the first thing in the section, and below the threshold there are no
-   numbers at all rather than a misleading average. #}
-<section class="card">
-  <h2>Move quality</h2>
+{# A block inside "The year in numbers", not a card of its own: these are the
+   same year counted a second way. It keeps its own subhead because it is the
+   one part of the page built on a biased sample, and the caveat has to sit
+   with the numbers it qualifies rather than at the foot of a long card.
+   Below the threshold there are no numbers at all rather than a misleading
+   average. #}
+<h3 class="subhead">Move quality</h3>
 
-  {% if quality.available %}
-    <p class="caveat">{{ coverage.caveat }}</p>
+{% if quality.available %}
+  <p class="caveat">{{ coverage.caveat }}</p>
 
-    {% set totals = quality.totals %}
-    <div class="tiles">
-      <div class="tile"><b>{{ totals.accuracy }}%</b><span>average accuracy</span></div>
-      <div class="tile"><b>{{ totals.acpl }}</b><span>average centipawn loss</span></div>
-      <div class="tile"><b>{{ totals.blunders_per_game }}</b><span>blunders per game</span></div>
-      <div class="tile"><b>{{ totals.mistakes_per_game }}</b><span>mistakes per game</span></div>
-    </div>
+  {% set totals = quality.totals %}
+  <div class="stats">
+    <div class="stat"><b>{{ totals.accuracy|decimal }}%</b><span>accuracy</span></div>
+    <div class="stat"><b>{{ totals.acpl|decimal }}</b><span>centipawn loss</span></div>
+    <div class="stat"><b>{{ totals.blunders_per_game|decimal(2) }}</b><span>blunders a game</span></div>
+    <div class="stat"><b>{{ totals.mistakes_per_game|decimal(2) }}</b><span>mistakes a game</span></div>
+  </div>
 
-    <p class="facts">
-      Across those games: {{ totals.blunders|commas }} blunders,
-      {{ totals.mistakes|commas }} mistakes and
-      {{ totals.inaccuracies|commas }} inaccuracies.
-    </p>
-
-    <p class="fine">
-      Analysed games are ones you asked Lichess to analyse, which is not a
-      random sample of your year. Read these as a description of those games,
-      not of your play in general.
-    </p>
-  {% else %}
-    <p class="caveat">{{ coverage.caveat }}</p>
-    <p>
-      We never run our own engine, so these numbers exist only for games that
-      were already analysed. {{ quality.games_analysed|commas }} is under the
-      {{ quality.min_analysed_games }} this section needs, and an average over
-      that few self-selected games would say more about which games you chose to
-      analyse than about how you played.
-    </p>
-  {% endif %}
-</section>
+  <p class="fine">
+    {{ totals.blunders|commas }} blunders, {{ totals.mistakes|commas }} mistakes
+    and {{ totals.inaccuracies|commas }} inaccuracies across those games &mdash;
+    the ones you asked Lichess to analyse, which is not a random sample of your
+    year. Read them as a description of those games, not of your play in general.
+  </p>
+{% else %}
+  <p class="caveat">{{ coverage.caveat }}</p>
+  <p>
+    We never run our own engine, so these numbers exist only for games that
+    were already analysed. {{ quality.games_analysed|commas }} is under the
+    {{ quality.min_analysed_games }} this section needs, and an average over
+    that few self-selected games would say more about which games you chose to
+    analyse than about how you played.
+  </p>
+{% endif %}

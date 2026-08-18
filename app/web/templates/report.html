@@ -20,7 +20,8 @@
     </h1>
     {% if headline.games %}
       <p class="lede">
-        {{ headline.games|commas }} rated games.
+        {{ headline.games|commas }} rated games and
+        {{ headline.moves_played|commas }} moves.
         {{ headline.hours_played|commas }} hours at the board across
         {{ headline.days_played|commas }} days.
       </p>
@@ -36,9 +37,10 @@
   {% else %}
 
   {% include "partials/player_type.html" %}
+  {# Quality is not listed here: it is a block inside the headline card, which
+     includes it. #}
   {% include "partials/headline.html" %}
   {% include "partials/openings.html" %}
-  {% include "partials/quality.html" %}
   {% include "partials/progression.html" %}
 
   {% endif %}

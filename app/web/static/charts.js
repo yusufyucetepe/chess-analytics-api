@@ -75,7 +75,7 @@
         datasets: spec.series.map(function (line, i) {
           var colour = palette[i % palette.length];
           return {
-            label: line.perf,
+            label: line.label || line.perf,
             data: line.points,
             borderColor: colour,
             backgroundColor: colour,
