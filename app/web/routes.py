@@ -13,6 +13,7 @@ mean.
 
 import logging
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -129,6 +130,62 @@ async def report_page(
     Never starts work: a player we have not built a report for is a page saying
     so with the form on it, not an export triggered by someone following a link.
     """
+    found = await _stored_report(request, session, redis, username)
+    if isinstance(found, Response):
+        return found
+    view, payload = found
+    sections = payload["sections"]
+    return templates.TemplateResponse(
+        request,
+        "report.html",
+        {
+            "view": view,
+            "report": payload,
+            "sections": sections,
+            "chart_data": chart_data(sections),
+        },
+    )
+
+
+@router.get(
+    "/u/{username}/puzzles",
+    response_class=HTMLResponse,
+    dependencies=[Depends(enforce_read_rate_limit)],
+)
+async def puzzles_page(
+    request: Request,
+    username: str,
+    session: AsyncSession = Depends(get_session),
+    redis: Redis = Depends(get_redis),
+) -> Response:
+    """The playable half of a report, on its own.
+
+    Reads the same stored payload as the report -- the puzzles were chosen when
+    it was built, so this page computes nothing and starts nothing. It exists
+    because playing is a different mode from reading, not because there is more
+    to fetch.
+    """
+    found = await _stored_report(request, session, redis, username)
+    if isinstance(found, Response):
+        return found
+    view, payload = found
+    return templates.TemplateResponse(
+        request, "puzzles.html", {"view": view, "report": payload, "sections": payload["sections"]}
+    )
+
+
+async def _stored_report(
+    request: Request, session: AsyncSession, redis: Redis, username: str
+) -> tuple[ReportView, dict[str, Any]] | Response:
+    """A finished report and its payload, or the page to show in place of one.
+
+    The payload comes back separately rather than being read off the view at
+    each call site: it is optional on a ``ReportView`` and not optional here,
+    and having checked that once is worth more than checking it twice.
+
+    Never starts work: a player we have not built a report for is a page saying
+    so with the form on it, not an export triggered by someone following a link.
+    """
     player = await service.player_by_username(session, username)
     view = (
         await completed_report(session, redis, player, service.latest_completed) if player else None
@@ -140,17 +197,7 @@ async def report_page(
             status.HTTP_404_NOT_FOUND,
             username=username,
         )
-    sections = view.payload["sections"]
-    return templates.TemplateResponse(
-        request,
-        "report.html",
-        {
-            "view": view,
-            "report": view.payload,
-            "sections": sections,
-            "chart_data": chart_data(sections),
-        },
-    )
+    return view, view.payload
 
 
 def _job(request: Request, view: ReportView) -> Response:

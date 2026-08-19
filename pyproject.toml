@@ -16,6 +16,7 @@ dependencies = [
     "httpx>=0.28",
     "jinja2>=3.1",
     "python-multipart>=0.0.20",
+    "chess>=1.11",
 ]
 
 [project.optional-dependencies]

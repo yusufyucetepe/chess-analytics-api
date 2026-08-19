@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from sqlalchemy.dialects.postgresql import Insert
 
 from app.ingest import IngestStats, ingest_games
 from tests.conftest import load_fixture
@@ -25,13 +26,31 @@ class RecordingSession:
 
     def __init__(self) -> None:
         self.statements: list[Any] = []
+        self.added: list[Any] = []
         self.commits = 0
+        self.rollbacks = 0
 
     async def execute(self, statement: Any) -> None:
         self.statements.append(statement)
 
+    def add_all(self, rows: Any) -> None:
+        self.added.extend(rows)
+
     async def commit(self) -> None:
         self.commits += 1
+
+    async def rollback(self) -> None:
+        self.rollbacks += 1
+
+    @property
+    def upserts(self) -> list[Any]:
+        """The game batches, without the puzzle pool's own statements.
+
+        Every ingest ends by replacing the player's puzzles, which is a DELETE
+        and a commit whether or not it found any. These tests are about when
+        *games* reach Postgres, so they count the inserts.
+        """
+        return [statement for statement in self.statements if isinstance(statement, Insert)]
 
 
 @pytest.fixture
@@ -70,8 +89,8 @@ async def test_games_are_written_one_batch_at_a_time(template: dict[str, Any]) -
 
     stats = await run(session, [clone(template, i) for i in range(12)], size=5)
 
-    assert len(session.statements) == 3, "5 + 5 + a partial 2"
-    assert session.commits == 3, "each batch is its own transaction"
+    assert len(session.upserts) == 3, "5 + 5 + a partial 2"
+    assert session.commits == 4, "each batch its own transaction, plus the puzzle pool's"
     assert stats.stored == 12
 
 
@@ -80,7 +99,7 @@ async def test_the_final_partial_batch_is_still_written(template: dict[str, Any]
 
     stats = await run(session, [clone(template, i) for i in range(3)], size=5)
 
-    assert len(session.statements) == 1
+    assert len(session.upserts) == 1
     assert stats.stored == 3
 
 
@@ -89,7 +108,7 @@ async def test_an_exact_multiple_does_not_write_an_empty_batch(template: dict[st
 
     await run(session, [clone(template, i) for i in range(10)], size=5)
 
-    assert len(session.statements) == 2
+    assert len(session.upserts) == 2
 
 
 async def test_a_stream_of_only_skippable_games_writes_nothing(template: dict[str, Any]) -> None:
@@ -97,9 +116,9 @@ async def test_a_stream_of_only_skippable_games_writes_nothing(template: dict[st
 
     stats = await run(session, [clone(template, i, variant="chess960") for i in range(4)], size=2)
 
-    assert session.statements == []
-    assert session.commits == 0
-    assert stats == IngestStats(fetched=4, stored=0, skipped=4, analysed=0)
+    assert session.upserts == []
+    assert session.added == [], "and no puzzles mined from games we declined"
+    assert stats == IngestStats(fetched=4, stored=0, skipped=4, analysed=0, puzzles=0)
 
 
 async def test_skipped_games_do_not_fill_the_batch(template: dict[str, Any]) -> None:
@@ -110,7 +129,7 @@ async def test_skipped_games_do_not_fill_the_batch(template: dict[str, Any]) -> 
 
     stats = await run(session, games, size=5)
 
-    assert len(session.statements) == 1, "the two kept games flush at the end, not mid-stream"
+    assert len(session.upserts) == 1, "the two kept games flush at the end, not mid-stream"
     assert stats.fetched == 10
     assert stats.skipped == 8
     assert stats.stored == 2

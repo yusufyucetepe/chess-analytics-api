@@ -42,6 +42,22 @@ class Settings(BaseSettings):
     #: reporting numbers that would be dominated by self-selection bias.
     quality_min_analysed_games: int = 20
 
+    # Puzzles, mined from the player's own flagged moves during ingest.
+    #: Points of the game a move must throw away before it is worth replaying,
+    #: measured on the win curve rather than in centipawns. Fifteen is roughly
+    #: "the game changed hands or nearly did".
+    puzzle_min_swing: int = 15
+    #: Skip the first few plies. Lichess flags book moves as mistakes readily,
+    #: and "you should have played the other Sicilian" solves nothing.
+    puzzle_min_ply: int = 4
+    #: A position already this far gone has no puzzle in it, however big the
+    #: swing from it looks.
+    puzzle_min_win_before: int = 20
+    #: Candidates kept per calendar month during an export. The report shows
+    #: fewer; the surplus is what lets the pick be rebalanced later without a
+    #: second export. Bounds ingest memory at twelve times this.
+    puzzle_pool_per_month: int = 4
+
     # Report sections
     report_top_openings: int = 5
     #: How deep the repertoire tree goes. Bounded by `opening_line_plies`, since
@@ -74,6 +90,12 @@ class Settings(BaseSettings):
     report_opening_min_games: int = 5
     #: A gap longer than this ends a playing session.
     report_session_gap_s: int = 30 * 60
+    #: Puzzles the puzzle page offers. A page of its own can hold more than a
+    #: section could; past this it stops being a sitting and becomes homework.
+    report_puzzles_shown: int = 10
+    #: Positions the report previews to say what is on that page. Diagrams only,
+    #: no controls -- enough to show they are your games, not enough to play.
+    report_puzzles_teased: int = 8
     #: Ceiling on one game's contribution to hours played. Correspondence games
     #: run for days of wall-clock time the player did not spend at the board.
     report_max_game_s: int = 4 * 3600

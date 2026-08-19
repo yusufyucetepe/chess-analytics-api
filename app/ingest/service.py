@@ -22,6 +22,8 @@ from app.db.models import Game, Player
 from app.ingest.parser import parse_game
 from app.lichess.client import LichessClient
 from app.lichess.schemas import PlayerProfile
+from app.puzzles import CandidatePool, find_candidate
+from app.puzzles import store as store_puzzles
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,8 @@ class IngestStats:
     skipped: int = 0
     #: Of the stored rows, how many carried engine analysis.
     analysed: int = 0
+    #: Positions kept for the puzzle section.
+    puzzles: int = 0
 
 
 async def upsert_player(session: AsyncSession, profile: PlayerProfile) -> Player:
@@ -89,6 +93,7 @@ async def ingest_games(
     # affect row a second time"). The client's resume logic already dedupes;
     # this is the cheap belt to its braces.
     batch: dict[str, dict[str, Any]] = {}
+    pool = CandidatePool()
 
     async for raw in games:
         stats.fetched += 1
@@ -96,22 +101,26 @@ async def ingest_games(
         if row is None:
             stats.skipped += 1
             continue
-        # `raw` also carries the per-ply `analysis` array, which has nowhere to
-        # live in `games` and is dropped here on purpose. When the puzzle
-        # feature lands, this loop -- while the raw game is still in hand -- is
-        # where candidate positions get pulled out. See docs/BRIEF.md.
+        # This is the only moment the per-ply `analysis` array exists: it has
+        # nowhere to live in `games` and is dropped with the rest of `raw` at
+        # the end of this iteration. The puzzle pool takes what it needs here
+        # rather than paying for a second export of the year later on.
+        if row["analysed"] and (candidate := find_candidate(raw, color=row["color"])):
+            pool.add(candidate, row["played_at"])
         batch[row["game_id"]] = row
         if len(batch) >= size:
             await _flush(session, batch, stats)
 
     await _flush(session, batch, stats)
+    stats.puzzles = await _store_puzzles(session, player_id, pool)
     logger.info(
-        "ingested player %d: %d fetched, %d stored, %d skipped, %d analysed",
+        "ingested player %d: %d fetched, %d stored, %d skipped, %d analysed, %d puzzles",
         player_id,
         stats.fetched,
         stats.stored,
         stats.skipped,
         stats.analysed,
+        stats.puzzles,
     )
     return stats
 
@@ -150,6 +159,23 @@ async def ingest_player(
     session.add(player)
     await session.commit()
     return player, stats
+
+
+async def _store_puzzles(session: AsyncSession, player_id: int, pool: CandidatePool) -> int:
+    """Write the pool, or log why not and carry on.
+
+    The one place in ingest that swallows an exception. The games are the
+    product and the puzzles are a bonus on top of them, so a fault in the newer
+    code must not cost a player the year that was already downloaded and
+    committed -- the log is the signal, not a failed report. The rollback is
+    what makes carrying on legal: the caller commits again straight after.
+    """
+    try:
+        return await store_puzzles(session, player_id, pool)
+    except Exception:
+        logger.exception("could not store puzzles for player %d; keeping the games", player_id)
+        await session.rollback()
+        return 0
 
 
 async def _flush(

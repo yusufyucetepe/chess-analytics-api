@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from starlette.requests import Request
 
+from app.core.config import settings
 from app.web import templating
 from app.web.charts import chart_data
 from app.web.templating import templates
@@ -63,6 +64,12 @@ def render_report(request_: Request, payload: dict[str, Any]) -> str:
         report=payload,
         sections=sections,
         chart_data=chart_data(sections),
+    )
+
+
+def render_puzzles(request_: Request, payload: dict[str, Any]) -> str:
+    return render(
+        "puzzles.html", request_, view=View(), report=payload, sections=payload["sections"]
     )
 
 
@@ -513,3 +520,201 @@ def test_a_date_that_is_not_one_prints_a_dash_rather_than_raising(junk: Any) -> 
     """The payload is JSON from a column; a template is the wrong place to crash."""
     assert templating.day(junk) == "--"
     assert templating.clock(junk) == "--"
+
+
+# -------------------------------------------------------------------- puzzles
+
+START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+
+def squares(fen: str, orientation: str = "white") -> dict[str, Any]:
+    return {square["name"]: square for square in templating.board(fen, orientation)}
+
+
+def test_the_board_filter_puts_every_piece_where_the_fen_says() -> None:
+    board = templating.board(START)
+
+    assert len(board) == 64
+    assert board[0]["name"] == "a8", "reading order, from White's side"
+    assert board[63]["name"] == "h1"
+    placed = squares(START)
+    assert placed["e1"]["piece"] == "wK", "uppercase is White in FEN"
+    assert placed["d8"]["piece"] == "bQ"
+    assert placed["e4"]["piece"] is None
+
+
+def test_the_board_is_drawn_from_the_players_own_side() -> None:
+    """A puzzle seen upside down is a different puzzle."""
+    board = templating.board(START, "black")
+
+    assert board[0]["name"] == "h1"
+    assert board[63]["name"] == "a8"
+
+
+def test_the_dark_squares_are_the_dark_squares() -> None:
+    """a1 dark, h1 light -- the one thing a board cannot get wrong."""
+    placed = squares(START)
+
+    assert placed["a1"]["dark"] is True
+    assert placed["h1"]["dark"] is False
+    assert placed["a8"]["dark"] is False
+    assert sum(1 for square in placed.values() if square["dark"]) == 32
+
+
+def test_the_report_previews_the_puzzles_rather_than_playing_them(
+    request_: Request,
+) -> None:
+    """Reading and playing are different modes; only one of them is this page."""
+    html = render_report(request_, full_payload())
+
+    assert "<h2>Puzzles</h2>" in html
+    assert "Learn from your mistakes." in html
+    assert 'href="/u/Zhigalko_Sergei/puzzles"' in html
+    assert html.count('class="board board--mini"') == 2, "both, capped at `puzzles_teased`"
+    assert "data-square=" not in html, "diagrams, with no squares to click"
+    assert "Show me" not in html
+    assert 'id="puzzle-data"' not in html, "and no answers shipped to read"
+
+
+def test_the_preview_stops_at_the_number_of_diagrams_it_is_given(
+    request_: Request,
+) -> None:
+    payload = full_payload()
+    only = payload["sections"]["puzzles"]["puzzles"][0]
+    payload["sections"]["puzzles"]["puzzles"] = [only] * 8
+
+    html = render_report(request_, payload)
+
+    assert html.count('class="board board--mini"') == settings.report_puzzles_teased
+
+
+def test_the_puzzles_link_is_in_the_header_where_it_can_be_found(
+    request_: Request,
+) -> None:
+    header = render_report(request_, full_payload()).split("<main>")[0]
+
+    assert '<a class="tab" href="/u/Zhigalko_Sergei/puzzles">Puzzles</a>' in header
+
+
+def test_a_year_with_no_puzzles_offers_no_link_to_them(request_: Request) -> None:
+    html = render_report(request_, sparse_payload())
+
+    assert "/puzzles" not in html
+    assert "no clear turning point" in html, "it says why instead"
+
+
+def test_the_puzzle_page_is_where_the_boards_are(request_: Request) -> None:
+    html = render_puzzles(request_, full_payload())
+
+    assert "<h1>Learn from your mistakes</h1>" in html
+    assert html.count('<li class="puzzle">') == 2
+    assert 'data-square="e1"' in html
+    assert "White's turn. Find the best move." in html
+    assert "&middot; move 11" in html, "the move number, out of the way of the task"
+    assert "https://lichess.org/0M6ofSuX/white#20" in html
+    assert 'id="puzzle-data"' in html and "/static/puzzles.js" in html
+
+
+def test_the_answer_is_in_the_page_but_not_on_it(request_: Request) -> None:
+    """It has to reach the browser; it must not be readable before the attempt."""
+    html = render_puzzles(request_, full_payload())
+
+    verdict = html[html.index('<div class="verdict"') :]
+    assert verdict.startswith('<div class="verdict" data-verdict hidden>')
+    assert "O-O was better" in verdict
+
+
+def test_the_puzzle_page_leads_back_to_the_year_it_came_from(
+    request_: Request,
+) -> None:
+    html = render_puzzles(request_, full_payload())
+
+    assert 'href="/u/Zhigalko_Sergei"' in html
+    assert 'aria-current="page"' in html, "and says which page this is"
+
+
+def test_the_puzzle_page_says_so_when_there_is_nothing_to_play(
+    request_: Request,
+) -> None:
+    html = render_puzzles(request_, sparse_payload())
+
+    assert "Nothing to replay this year." in html
+    assert "no clear turning point" in html
+    assert 'id="puzzle-data"' not in html
+
+
+def test_the_puzzle_page_survives_a_report_built_before_it_existed(
+    request_: Request,
+) -> None:
+    payload = full_payload()
+    del payload["sections"]["puzzles"]
+
+    html = render_puzzles(request_, payload)
+
+    assert "built before puzzles existed" in html
+
+
+def test_a_report_built_before_puzzles_existed_still_renders(request_: Request) -> None:
+    """Stored payloads are never migrated -- see REPORT_SCHEMA_VERSION."""
+    payload = full_payload()
+    del payload["sections"]["puzzles"]
+
+    html = render_report(request_, payload)
+
+    assert "<h2>Puzzles</h2>" not in html
+    assert "Opening Repertoire" in html, "and the rest of the report is untouched"
+
+
+def test_every_piece_the_filter_names_has_artwork_to_draw_it() -> None:
+    """A typo in one of the twelve rules is an invisible piece, not an error.
+
+    The board filter names pieces; the stylesheet points each name at a file.
+    Nothing else connects those two lists, so this does.
+    """
+    static = templating.TEMPLATES_DIR.parent / "static"
+    css = (static / "app.css").read_text()
+
+    for color in "wb":
+        for piece in "KQRBNP":
+            code = f"{color}{piece}"
+            assert f'.pc--{code} {{ background-image: url("/static/pieces/{code}.svg"); }}' in css
+            assert (static / "pieces" / f"{code}.svg").is_file()
+
+
+def test_a_full_board_names_thirty_two_pieces() -> None:
+    """Every square the opening position fills, and no square it does not."""
+    named = [square["piece"] for square in templating.board(START) if square["piece"]]
+
+    assert len(named) == 32
+    assert named.count("wP") == 8 and named.count("bP") == 8
+    assert set(named) <= {f"{c}{p}" for c in "wb" for p in "KQRBNP"}
+
+
+def test_a_board_is_eight_equal_rows_as_well_as_eight_equal_columns() -> None:
+    """Rows sized by content collapse on a rank with no pieces on it.
+
+    The filter always emits sixty-four cells, so the only thing deciding that
+    they are square is this pair of rules -- and only one of them is the one
+    anybody remembers to write.
+    """
+    css = (templating.TEMPLATES_DIR.parent / "static" / "app.css").read_text()
+    board_rules = css[css.index(".board {") : css.index("}", css.index(".board {"))]
+
+    assert "grid-template-columns: repeat(8, 1fr);" in board_rules
+    assert "grid-template-rows: repeat(8, 1fr);" in board_rules
+
+
+def test_every_rank_of_every_position_is_eight_squares_wide() -> None:
+    """A FEN whose ranks do not add up to eight would deal a ragged grid."""
+    positions = [
+        START,
+        # The one that showed the collapsing row: rank 3 is empty.
+        "2r5/3k4/Q7/1R2p3/3q4/8/5PPP/2R3K1 w - - 2 33",
+        "8/8/8/8/8/8/8/8 w - - 0 1",
+        "4k3/8/8/8/8/8/8/4K2R w K - 0 1",
+    ]
+    for fen in positions:
+        squares = templating.board(fen)
+        assert len(squares) == 64, fen
+        for rank in range(1, 9):
+            assert sum(1 for s in squares if s["name"].endswith(str(rank))) == 8, (fen, rank)

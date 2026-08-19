@@ -41,6 +41,23 @@
   --aggressive-ink: #b91c1c;
   --tactical-ink: #a16207;
 
+  /* The board. Neutral grey, not the warm stone the rest of the page is made
+     of, and not in the dark-theme block below either: a board is an object on
+     the page rather than part of its surface, and it stays the same object
+     under both themes -- pale and bright, the way one on a table is. The light
+     square is close enough to white that the ring on `.board` is what gives it
+     an edge on the light theme. The pieces have no tokens: they are artwork,
+     and their colours are inside the files. */
+  --sq-light: #f7f7f7;
+  --sq-dark: #b8b8b8;
+  /* Marks on the board -- the square a piece came from, where it may go, where
+     it went. A third tone between the two squares rather than a colour: it is
+     the same mark whichever square it lands on, and it reads as the board
+     doing something rather than as something drawn on top of it. Opaque, so
+     the two squares under it end up identical instead of each keeping a tint
+     of its own. */
+  --sq-mark: #dcdcdc;
+
   --radius: 12px;
   --shadow: 0 1px 2px rgb(28 25 23 / 6%), 0 8px 24px rgb(28 25 23 / 4%);
 }
@@ -77,6 +94,11 @@
 
 * { box-sizing: border-box; }
 
+/* The browser's own `[hidden] { display: none }` is a user-agent rule, so any
+   class here that sets `display` silently beats it -- which would leave the
+   puzzle controls on screen for a reader with no JavaScript to work them. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--page);
@@ -109,6 +131,42 @@ header.site { border-bottom: 1px solid var(--rule); }
 footer.site { border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem; margin-top: 2rem; }
 .brand { font-weight: 700; text-decoration: none; color: var(--ink); }
 .tagline { color: var(--muted); font-size: .9rem; }
+
+/* `margin-left: auto` rather than `justify-content: space-between`: the header
+   wraps on a narrow screen, and space-between would push the tagline away from
+   the brand it belongs to on the way there. Empty on pages with no player, and
+   an empty flex item takes no space. */
+.site-nav {
+  margin-left: auto;
+  display: flex; gap: 1rem; align-items: center;
+  font-size: .9rem; font-weight: 600;
+}
+.site-nav a { text-decoration: none; }
+.site-nav .nav-back { font-weight: 400; color: var(--muted); }
+.site-nav .nav-back:hover { text-decoration: underline; }
+
+/* A filled pill rather than a link: it is the one place on the report that
+   leads somewhere else, and a word in a row of words is not where anyone looks
+   for that. The interface grey, the same token the signal boxes on the
+   player-type card are drawn with, so it reads as part of the furniture rather
+   than as the one call to action on a page that has none. */
+.tab {
+  color: var(--ink);
+  background: var(--rule);
+  padding: .45rem 1.1rem;
+  border-radius: 999px;
+  font-size: 1rem;
+}
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The tab for the page you are already on: hollowed out, so the pair reads as
+   one selected and one not, rather than as two buttons. The ring is an outline
+   rather than a box-shadow, which the hover wash above has already claimed. */
+.tab[aria-current="page"] {
+  background: none;
+  outline: 1px solid var(--rule);
+  outline-offset: -1px;
+  color: var(--muted);
+}
 
 .visually-hidden {
   position: absolute; width: 1px; height: 1px;
@@ -153,15 +211,24 @@ button, .button {
   font-size: 1rem;
   font-family: inherit;
   font-weight: 600;
-  color: #fff;
-  background: var(--accent);
+  /* The interface grey, the same token the signal boxes and the header tab are
+     drawn with. Nothing on these pages is competing for a click hard enough to
+     want a colour of its own. */
+  color: var(--ink);
+  background: var(--rule);
   border: 0;
   border-radius: var(--radius);
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
 }
+/* A mid-grey wash rather than `brightness()`: it darkens the light theme's grey
+   and lightens the dark theme's, so one rule covers both. */
+button:hover, .button:hover, .tab:hover {
+  box-shadow: inset 0 0 0 999px rgb(127 127 127 / 22%);
+}
 button:disabled { opacity: .55; cursor: progress; }
+button:disabled:hover { box-shadow: none; }
 
 /* htmx toggles this class on the element for the duration of the request. */
 .htmx-indicator { display: none; flex-basis: 100%; margin: 0; }
@@ -428,3 +495,193 @@ table.grid thead th:first-child { text-align: left; }
    grows a hole. */
 .chart--donut { max-width: 20rem; margin-inline: auto; }
 
+
+/* --------------------------------------------------------------- puzzles */
+
+.puzzle-list { list-style: none; margin: 1.25rem 0 0; padding: 0; }
+/* Without the script the puzzles stack, and this is what keeps that stack
+   readable. */
+.puzzle + .puzzle { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
+/* With it, only one is ever visible, so there is nothing above it to be
+   separated from -- and the separator would draw a line across the top of the
+   card and push the board down away from it. */
+.puzzle-list--one .puzzle + .puzzle { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.puzzle-context { font-size: .85rem; color: var(--muted); margin: 0 0 .75rem; }
+.puzzle-step {
+  font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink);
+  margin-right: .5rem;
+}
+.prompt { font-weight: 600; margin: .9rem 0 .4rem; }
+.puzzle-actions { display: flex; gap: .6rem; align-items: center; margin: .9rem 0 .4rem; }
+.puzzle-actions .fine { margin: 0; }
+/* Giving up is a choice the page offers, not one it recommends: outlined, so
+   "Next" stays the filled one of the pair. */
+.button--quiet {
+  background: none; color: var(--muted);
+  border: 1px solid var(--rule);
+  padding: .55rem 1rem; font-size: .9rem;
+}
+
+.board {
+  display: grid;
+  /* Both axes stated. The rows are not optional: without them they size to
+     their content, and a rank with no pieces on it has no content, so it
+     collapses to a band while the ranks either side of it take the space it
+     gave up. Columns never showed this because `1fr` was already forcing them
+     equal -- an empty *file* is spread across eight rows and never empties one. */
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  /* The board is the reason the page exists, so it gets as much of the column
+     as it can have without the sentence under it becoming a long line. */
+  width: min(100%, 40rem);
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  /* So the pieces can be sized as a share of the board rather than of the page:
+     a board that shrinks on a phone has to take its pieces with it. */
+  container-type: inline-size;
+  /* Inset, so it follows the rounded corners and costs no layout. The outline
+     below is left for the solved/shown states, which need to be able to change
+     colour without redrawing this. */
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 10%);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.sq { position: relative; display: grid; place-items: center; }
+.sq--light { background: var(--sq-light); }
+.sq--dark { background: var(--sq-dark); }
+
+/* Real artwork, not text. The Unicode glyphs this started on are a typeface's
+   idea of a chess piece: they differ per platform, they sit on the text
+   baseline rather than in the middle of a square, and the outlined set is a
+   lighter weight than the solid one, so a white king and a black king are not
+   the same drawing. These twelve files are the set Lichess and Wikipedia use,
+   vendored -- see pieces/NOTICE.md for the licence they come under.
+
+   Sized as a share of the square rather than in `rem`: the board is a
+   container, so shrinking it to a 6rem preview shrinks the pieces with it and
+   nothing here has to know which board it is on. */
+.pc {
+  display: block;
+  width: 92%; aspect-ratio: 1;
+  background: center / contain no-repeat;
+  pointer-events: none;
+  /* Above anything the square draws on itself. An absolutely positioned
+     pseudo-element paints after static content in the same box, so without
+     this the destination dot lands on top of a piece it is meant to sit under
+     -- and any full-square mark would hide the piece altogether. */
+  position: relative;
+  z-index: 1;
+}
+/* The pieces the answer puts on the board, once it has been found or given up
+   on. Brief, and only on arrival: the point is to catch the eye at the two
+   squares that changed, not to animate a move that has already happened. */
+.pc--placed { animation: arrive 220ms ease-out; }
+@keyframes arrive {
+  from { transform: scale(.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc--placed { animation: none; }
+}
+
+.pc--wK { background-image: url("/static/pieces/wK.svg"); }
+.pc--wQ { background-image: url("/static/pieces/wQ.svg"); }
+.pc--wR { background-image: url("/static/pieces/wR.svg"); }
+.pc--wB { background-image: url("/static/pieces/wB.svg"); }
+.pc--wN { background-image: url("/static/pieces/wN.svg"); }
+.pc--wP { background-image: url("/static/pieces/wP.svg"); }
+.pc--bK { background-image: url("/static/pieces/bK.svg"); }
+.pc--bQ { background-image: url("/static/pieces/bQ.svg"); }
+.pc--bR { background-image: url("/static/pieces/bR.svg"); }
+.pc--bB { background-image: url("/static/pieces/bB.svg"); }
+.pc--bN { background-image: url("/static/pieces/bN.svg"); }
+.pc--bP { background-image: url("/static/pieces/bP.svg"); }
+
+/* Marking a square, in the two states that do it.
+
+   While you are choosing: the square you picked up from is tinted, and the
+   squares you may go to get a dot. A dot rather than a tint, because a tinted
+   empty square reads as a piece being there.
+
+   Once the puzzle is over: both of the answer's squares are tinted, and there
+   are no dots at all. The dot means "you could move here", and after the move
+   has been played that is no longer an offer -- leaving one on the square the
+   piece just landed on invites a click that does nothing. */
+/* Recolouring the square rather than covering it: an overlay would have to be
+   drawn under the piece to be safe, and a square that is simply a third colour
+   needs nothing drawn at all. Later in the file than `.sq--light` and
+   `.sq--dark`, which is what wins it the cascade at equal specificity. */
+.sq--from, .sq--played { background: var(--sq-mark); }
+.sq--to::after {
+  content: ""; position: absolute;
+  width: 28%; aspect-ratio: 1; border-radius: 50%;
+  background: var(--sq-mark);
+}
+/* A destination that already has a piece on it is a capture, and a dot in the
+   middle of one is a dot nobody can see. The mark goes round the piece
+   instead. Sized in container units like the pieces are, so it thins down with
+   the board rather than sitting on a preview like a hoop. */
+.sq--to:has(.pc)::after {
+  width: 86%;
+  background: none;
+  border: 1.4cqw solid var(--sq-mark);
+}
+
+.board--solved { outline-color: var(--win); }
+.board--shown { outline-color: var(--muted); }
+.board--wrong { animation: nudge 320ms ease-in-out; }
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.verdict {
+  margin: .9rem 0 0; padding: .9rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--page);
+  border-radius: 0 6px 6px 0;
+}
+.verdict p { margin: 0; }
+.verdict .fine { margin-top: .4rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board--wrong { animation: none; outline-color: var(--loss); }
+}
+
+/* ----------------------------------------------------------- puzzle teaser */
+
+/* The whole block is the link, so nothing inside it wants link styling of its
+   own -- only the call to action, which is the part that looks clickable. */
+.teaser { display: block; text-decoration: none; color: inherit; }
+.teaser .lede { color: var(--ink); font-weight: 600; font-size: 1.15rem; margin-bottom: 0; }
+.teaser-cta { color: var(--accent); margin: 0; }
+.teaser-cta b { color: var(--ink); }
+.teaser:hover .teaser-cta, .teaser:focus-visible .teaser-cta { text-decoration: underline; }
+.teaser:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+
+.board-strip { display: flex; gap: .6rem; margin: 1.1rem 0; overflow: hidden; }
+.board--mini {
+  width: 6rem;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  /* The pieces are sized in container units, so shrinking the board shrinks
+     them with it and the diagram stays a diagram rather than a grid of clipped
+     glyphs. Nothing else has to change. */
+  transition: transform 150ms ease;
+}
+.teaser:hover .board--mini { transform: translateY(-3px); }
+
+/* Eight boards fill the card at full width and stop fitting just below it, and
+   a strip running off the edge reads as deliberate only if it fades rather than
+   stopping mid-square. The breakpoint is where the card's inner width drops
+   below the strip's, not a phone size. */
+@media (max-width: 58rem) {
+  .board-strip { mask-image: linear-gradient(to right, #000 60%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board--mini { transition: none; }
+  .teaser:hover .board--mini { transform: none; }
+}

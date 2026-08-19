@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% set player = report.player %}
+{% set puzzles = sections.get('puzzles') %}
+
+{% block title %}{{ player.username }}'s puzzles &ndash; Chessona{% endblock %}
+
+{% block nav %}
+  <a href="/u/{{ player.username }}" class="nav-back">{{ player.username }}'s year</a>
+  <a class="tab" href="/u/{{ player.username }}/puzzles" aria-current="page">Puzzles</a>
+{% endblock %}
+
+{# Every board is rendered here, in full, in document order, and every one of
+   them is visible: the positions are HTML before any script runs, so with
+   scripting off this page degrades to a set of diagrams and a link to each
+   game. `puzzles.js` is what collapses the list to one at a time, reveals the
+   controls, and makes the squares clickable -- the parts that need a click to
+   mean anything.
+
+   The answer travels to the browser with the puzzle rather than being checked
+   by the server. It is inspectable, and that is fine: the game it came from is
+   linked directly below it, so there was never a secret to keep. What a round
+   trip would buy is a route, a rate limit and a spinner between clicking a
+   square and finding out, on a page whose whole appeal is that it is quick. #}
+{% block content %}
+<article class="report">
+
+  <section class="wrap-hero">
+    <p class="eyebrow">{{ report.period.start|day }} to {{ report.period.end|day }}</p>
+    <h1>Learn from your mistakes</h1>
+    {% if puzzles and puzzles.available %}
+      <p class="lede">
+        {{ puzzles.shown|plural("position") }} from your own games, spread across the year.
+        In each one you played something else. Find what you missed.
+      </p>
+    {% endif %}
+  </section>
+
+  {% if not puzzles or not puzzles.available %}
+    <section class="card">
+      <p class="lede">Nothing to replay this year.</p>
+      <p class="fine">{{ puzzles.reason if puzzles else "This report was built before puzzles existed." }}</p>
+      <p><a class="button" href="/u/{{ player.username }}">Back to the year</a></p>
+    </section>
+  {% else %}
+    <section class="card puzzles">
+      <ol class="puzzle-list" id="puzzles">
+        {% for item in puzzles.puzzles %}
+          {% set to_move = "White" if item.color == "white" else "Black" %}
+          <li class="puzzle">
+            <p class="puzzle-context">
+              <span class="puzzle-step">{{ loop.index }} / {{ puzzles.puzzles|length }}</span>
+              {{ item.perf|perf }} &middot; {{ item.played_at|day }}
+              {%- if item.opponent.name %} &middot; vs {{ item.opponent.name }}
+                {%- if item.opponent.rating %} ({{ item.opponent.rating }}){% endif %}
+              {%- endif %}
+              &middot; move {{ item.move_number }}
+            </p>
+
+            {# The task goes on the group; the 64 cells under it are decoration a
+               screen reader should not have to walk to find out what is asked. #}
+            <div class="board" role="group"
+                 aria-label="{{ to_move }}'s turn, move {{ item.move_number }}. Find the best move.">
+              {% for square in item.fen|board(item.color) %}
+                <span class="sq {{ 'sq--dark' if square.dark else 'sq--light' }}" data-square="{{ square.name }}">
+                  {%- if square.piece %}<b class="pc pc--{{ square.piece }}"></b>{% endif -%}
+                </span>
+              {% endfor %}
+            </div>
+
+            <p class="prompt">{{ to_move }}'s turn. Find the best move.</p>
+
+            {# Hidden until the puzzle is over, one way or the other, and left
+               hidden when there is no script to end it: without a board to click
+               the answer is not an answer to anything, and the game is linked. #}
+            <div class="verdict" data-verdict hidden>
+              <p><b data-outcome></b>
+                You played <b>{{ item.move_played }}</b>.
+                {{ item.best_move_san }} was better{% if item.continuation %},
+                and after {{ item.continuation|join(" ") }}{% endif %}.</p>
+              <p class="fine">
+                {{ item.judgment }} &middot; this cost {{ item.swing }} points of the game,
+                from {{ item.win_before }}% to {{ item.win_after }}%.
+              </p>
+            </div>
+
+            {# Unhidden by the script. Neither button does anything without it. #}
+            <p class="puzzle-actions" data-actions hidden>
+              <button type="button" class="button button--quiet" data-reveal>Show me</button>
+              <button type="button" class="button" data-next hidden>Next</button>
+            </p>
+
+            <p class="fine">
+              <a href="{{ item.url }}" rel="noopener" target="_blank">This game on Lichess</a>
+            </p>
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  <section class="card meta">
+    <p class="fine"><a href="/u/{{ player.username }}">&larr; {{ player.username }}'s year</a></p>
+  </section>
+</article>
+{% endblock %}
+
+{% block scripts %}
+{% if puzzles and puzzles.available %}
+<script id="puzzle-data" type="application/json">{{ puzzles.puzzles|json_data }}</script>
+<script src="/static/puzzles.js?v={{ asset_v }}"></script>
+{% endif %}
+{% endblock %}

@@ -15,6 +15,9 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import StrictUndefined
 from markupsafe import Markup
 
+from app.core.config import settings
+from app.puzzles import piece_code
+
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -177,6 +180,53 @@ def signed(value: Any) -> str:
     return f"{value:+,}"
 
 
+FILES = "abcdefgh"
+
+
+def board(fen: Any, orientation: Any = "white") -> list[dict[str, Any]]:
+    """A FEN as 64 squares in reading order, from ``orientation``'s side.
+
+    Server-side so the position is on the page before any JavaScript runs: with
+    scripting off a puzzle is still a diagram and a link to the game, which is
+    most of what it is. The script only adds the part that needs a click.
+
+    Only the placement field is read. Castling rights and the en-passant square
+    matter to the rules, and the rules were applied at ingest -- what reaches
+    the browser is a list of legal moves, not a position to reason about.
+
+    Squares carry the *name* of a piece, not a picture of one. The artwork is
+    twelve vendored SVGs the stylesheet points at, so a diagram is 64 empty
+    elements and no markup that changes when the set does.
+    """
+    placement = str(fen or "").split(" ")[0]
+    squares: list[dict[str, Any]] = []
+    for rank_index, row in enumerate(placement.split("/")[:8]):
+        rank = 8 - rank_index
+        file_index = 0
+        for char in row:
+            if char.isdigit():
+                for _ in range(int(char)):
+                    squares.append(_square(file_index, rank, None))
+                    file_index += 1
+            else:
+                squares.append(_square(file_index, rank, char))
+                file_index += 1
+    if orientation == "black":
+        squares.reverse()
+    return squares
+
+
+def _square(file_index: int, rank: int, piece: str | None) -> dict[str, Any]:
+    return {
+        "name": f"{FILES[file_index]}{rank}" if file_index < 8 else "",
+        # "wK", "bQ" and so on: the filename of the piece's artwork, and what
+        # the CSS class is built from. Shared with the puzzle resolution, which
+        # names the same squares when a move is played on top of this.
+        "piece": None if piece is None else piece_code(piece),
+        "dark": (file_index + rank) % 2 == 1,
+    }
+
+
 def day(value: str | None) -> str:
     """An ISO timestamp as "3 Mar 2025"."""
     moment = _parse(value)
@@ -212,6 +262,7 @@ def build_templates() -> Jinja2Templates:
             "percent": percent,
             "decimal": decimal,
             "signed": signed,
+            "board": board,
             "day": day,
             "clock": clock,
         }
@@ -219,6 +270,7 @@ def build_templates() -> Jinja2Templates:
     # Read once: the token only has to change between deploys, and in dev the
     # reloader rebuilds this module whenever the files it measures change.
     templates.env.globals["asset_v"] = asset_version()
+    templates.env.globals["puzzles_teased"] = settings.report_puzzles_teased
     # An undefined name in a template is a bug in the template, and rendering it
     # as an empty string is how that would reach production unnoticed.
     templates.env.undefined = StrictUndefined

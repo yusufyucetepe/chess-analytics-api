@@ -1,4 +1,4 @@
-"""The five computed sections of a report.
+"""The computed sections of a report.
 
 Each module owns one section and answers with plain JSON-native values. They run
 one after another rather than concurrently: they share the job's single
@@ -15,6 +15,7 @@ from app.report.sections import (
     openings,
     player_type,
     progression,
+    puzzles,
     quality,
     time_behaviour,
 )
@@ -38,6 +39,9 @@ async def build_sections(
         "time_behaviour": await time_behaviour.build(session, player_id, since=since, until=until),
         "progression": await progression.build(session, player_id, since=since, until=until),
         "player_type": await player_type.build(session, player_id, since=since, until=until),
+        "puzzles": await puzzles.build(
+            session, player_id, since=since, until=until, games_analysed=games_analysed
+        ),
     }
 
 
@@ -47,6 +51,7 @@ __all__ = [
     "openings",
     "player_type",
     "progression",
+    "puzzles",
     "quality",
     "time_behaviour",
 ]

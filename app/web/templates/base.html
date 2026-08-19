@@ -17,6 +17,9 @@
   <header class="site">
     <a class="brand" href="/">&#9822; Chessona</a>
     <span class="tagline">Your Lichess year, read back to you.</span>
+    {# Only the pages that know whose year it is fill this in: a Puzzles link
+       with no player behind it has nowhere to go. #}
+    <nav class="site-nav">{% block nav %}{% endblock %}</nav>
   </header>
 
   <main>
@@ -27,6 +30,11 @@
     <p>
       Built on the <a href="https://lichess.org/api" rel="noopener">Lichess public API</a>.
       Not affiliated with Lichess. <a href="/docs">API docs</a>.
+      {# Required by the licence on the piece artwork, not a courtesy. The set
+         is multi-licensed and we take the BSD option; the notice it asks us to
+         keep is the file this links to. See static/pieces/NOTICE.md. #}
+      Pieces &copy; 2006 Colin M.L. Burnett,
+      <a href="/static/pieces/NOTICE.md" rel="license">BSD</a>.
     </p>
   </footer>
   {% block scripts %}{% endblock %}

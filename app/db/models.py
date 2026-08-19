@@ -20,6 +20,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -33,7 +34,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-REPORT_SCHEMA_VERSION = 1
+#: 2 added the puzzles section. Stored payloads are never migrated -- a report
+#: is a snapshot and rebuilding one is a minute of work -- so anything reading
+#: `sections` has to cope with a name that was not there when it was written.
+REPORT_SCHEMA_VERSION = 2
 
 
 class Color(enum.StrEnum):
@@ -161,6 +165,56 @@ class Game(Base):
     opening_line: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list, server_default="{}")
 
     player: Mapped[Player] = relationship(back_populates="games")
+
+
+class Puzzle(Base):
+    """One position from the player's own games, worth playing again.
+
+    Mined during ingest, while the per-ply ``analysis`` array is still in hand:
+    recomputing one later would cost a second export of the whole year. The row
+    carries only what the board needs -- everything about the *game* it came
+    from is one join away on the composite key it shares with ``games``.
+
+    One puzzle per game, so a single collapse cannot fill a report.
+    """
+
+    __tablename__ = "puzzles"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["player_id", "game_id"],
+            ["games.player_id", "games.game_id"],
+            ondelete="CASCADE",
+        ),
+        Index("ix_puzzles_player_swing", "player_id", "swing"),
+    )
+
+    player_id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+
+    #: Index into the game's move list of the move that should not have been
+    #: played. The position below is the one *before* it.
+    ply: Mapped[int] = mapped_column(SmallInteger)
+    fen: Mapped[str] = mapped_column(Text)
+    #: SAN, for telling the player what they did.
+    move_played: Mapped[str] = mapped_column(Text)
+    #: UCI, because the board answers in squares.
+    best_move: Mapped[str] = mapped_column(Text)
+    best_move_san: Mapped[str] = mapped_column(Text)
+    #: The engine's line after the best move, in SAN, excluding it.
+    continuation: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list, server_default="{}")
+    judgment: Mapped[str] = mapped_column(Text)
+    #: Lichess's own sentence about the move.
+    comment: Mapped[str] = mapped_column(Text)
+
+    #: Share of the point, 0-100, from the player's side, either side of the move.
+    win_before: Mapped[int] = mapped_column(SmallInteger)
+    win_after: Mapped[int] = mapped_column(SmallInteger)
+    #: What the move cost. The ranking key.
+    swing: Mapped[int] = mapped_column(SmallInteger)
+
+    #: ``{from_square: [to_square, ...]}``. Precomputed so the browser can
+    #: refuse an illegal move without shipping a rules engine to do it.
+    legal_moves: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
 
 
 class Report(Base):

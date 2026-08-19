@@ -426,6 +426,74 @@ def full_payload(**overrides: Any) -> dict[str, Any]:
                     "tagged_games": 336,
                 },
             },
+            "puzzles": {
+                "available": True,
+                "shown": 2,
+                "pool": 9,
+                "games_analysed": 312,
+                "reason": None,
+                # Two real positions, extracted by the pipeline from the recorded
+                # fixture games and pasted here. Handwritten ones would be a FEN
+                # nobody checked and a legal-move map that agreed with it.
+                "puzzles": [
+                    {
+                        "game_id": "0M6ofSuX",
+                        "url": "https://lichess.org/0M6ofSuX/white#20",
+                        "played_at": "2025-03-14T19:41:00+00:00",
+                        "perf": "blitz",
+                        "color": "white",
+                        "result": "loss",
+                        "opponent": {"name": "Nepo_fan", "rating": 1611},
+                        "ply": 20,
+                        "move_number": 11,
+                        "fen": "r1bq1rk1/ppp2pp1/3p3p/2bN4/2Ppn3/1P5P/PB1PBPP1/R2QK2R w KQ - 0 11",
+                        "move_played": "f3",
+                        "best_move": "e1g1",
+                        "best_move_san": "O-O",
+                        "continuation": ["c6"],
+                        "judgment": "Blunder",
+                        "comment": "Checkmate is now unavoidable. O-O was best.",
+                        "win_before": 36,
+                        "win_after": 0,
+                        "swing": 36,
+                        # Trimmed to the squares the two assertions touch: the
+                        # real map has one entry per piece with a move, and
+                        # pasting thirteen of those buys the test nothing.
+                        "legal_moves": {
+                            "e1": ["f1", "g1"],
+                            "d5": ["e7", "c7", "f6", "b6", "f4", "b4", "e3", "c3"],
+                        },
+                    },
+                    {
+                        "game_id": "aJrkZsy8",
+                        "url": "https://lichess.org/aJrkZsy8/white#38",
+                        "played_at": "2025-09-02T08:12:00+00:00",
+                        "perf": "rapid",
+                        "color": "white",
+                        "result": "loss",
+                        "opponent": {"name": "j_hellsten", "rating": 2402},
+                        "ply": 38,
+                        "move_number": 20,
+                        "fen": "r1q1bk2/1p1n1prB/p3p3/3p3R/3P1Q2/2P5/PP3PPP/RN4K1 w - - 5 20",
+                        "move_played": "Nd2",
+                        "best_move": "f4d6",
+                        "best_move_san": "Qd6#",
+                        "continuation": [],
+                        "judgment": "Blunder",
+                        "comment": "Lost forced checkmate sequence. Qd6# was best.",
+                        "win_before": 100,
+                        "win_after": 82,
+                        "swing": 18,
+                        # Trimmed to the squares the two assertions touch: the
+                        # real map has one entry per piece with a move, and
+                        # pasting thirteen of those buys the test nothing.
+                        "legal_moves": {
+                            "f4": ["d6", "f7", "h6", "g5", "e5", "g4", "e3"],
+                            "h7": ["g8", "g6"],
+                        },
+                    },
+                ],
+            },
         },
     }
     payload.update(overrides)
@@ -496,6 +564,20 @@ def sparse_payload() -> dict[str, Any]:
         "main_perf": None,
         "best_gain": None,
         "provisional_games": 0,
+    }
+    # Five analysed games with nothing flagged in them: the branch that has to
+    # say so without borrowing the quality section's "too few to be honest",
+    # which is not the reason here.
+    sections["puzzles"] = {
+        "available": False,
+        "shown": 0,
+        "pool": 0,
+        "games_analysed": 5,
+        "reason": (
+            "Your analysed games had no clear turning point to replay -- "
+            "no single move that handed the game over."
+        ),
+        "puzzles": [],
     }
     sections["player_type"] |= {
         "label": None,

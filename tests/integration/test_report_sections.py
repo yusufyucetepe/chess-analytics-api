@@ -2,7 +2,7 @@
 
 Almost all of this logic is SQL -- window functions, array slices, FILTER
 aggregates -- so mocking the database would test nothing at all. The
-player-type section has its own module; this one covers the other five.
+player-type and puzzles sections have their own modules; this one covers the rest.
 """
 
 from datetime import timedelta

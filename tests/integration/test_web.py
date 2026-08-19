@@ -307,6 +307,57 @@ async def test_the_report_page_is_served_from_the_same_cache_as_the_api(
     assert "Offbeat Strategist" in resp.text
 
 
+# ---------------------------------------------------------------- puzzle page
+
+
+@respx.mock
+async def test_the_puzzle_page_plays_the_positions_the_report_only_shows(
+    api: AsyncClient, session: AsyncSession, queue: Queue
+) -> None:
+    mock_profile()
+    await submit(api)
+    await finish(session, queue.enqueued[0], full_payload())
+
+    report = await api.get(f"/u/{USERNAME}")
+    puzzles = await api.get(f"/u/{USERNAME}/puzzles")
+
+    assert puzzles.status_code == 200
+    assert "Learn from your mistakes" in puzzles.text
+    assert "/static/puzzles.js" in puzzles.text
+    assert "/static/puzzles.js" not in report.text, "the report links there, it does not play"
+    assert f'href="/u/{USERNAME}/puzzles"' in report.text
+
+
+@respx.mock
+async def test_the_puzzle_page_is_a_permalink_not_a_trigger(api: AsyncClient, queue: Queue) -> None:
+    """Same rule as the report page: a link is not a reason to export a year."""
+    route = respx.get(path__startswith="/api/user/").mock(return_value=httpx.Response(200))
+
+    resp = await api.get("/u/someonewenevermet/puzzles")
+
+    assert resp.status_code == 404
+    assert not route.called
+    assert queue.enqueued == []
+
+
+@respx.mock
+async def test_the_puzzle_page_reads_the_report_rather_than_the_puzzles_table(
+    api: AsyncClient, session: AsyncSession, queue: Queue
+) -> None:
+    """The pick was made when the report was built; this page recomputes none of it."""
+    mock_profile()
+    await submit(api)
+    report = await finish(session, queue.enqueued[0], full_payload())
+    await api.get(f"/u/{USERNAME}/puzzles")
+    await session.delete(report)
+    await session.commit()
+
+    resp = await api.get(f"/u/{USERNAME}/puzzles")
+
+    assert resp.status_code == 200
+    assert "Learn from your mistakes" in resp.text
+
+
 # ------------------------------------------------------------ payload shape
 
 

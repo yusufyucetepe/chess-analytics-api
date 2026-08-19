@@ -6,8 +6,17 @@
 {% set openings = sections.openings %}
 {% set quality = sections.quality %}
 {% set progression = sections.progression %}
+{# `.get`: reports stored before schema v2 have no puzzles key at all, and the
+   templates run on StrictUndefined. #}
+{% set puzzles = sections.get('puzzles') %}
 
 {% block title %}{{ player.username }}'s chess year &ndash; Chessona{% endblock %}
+
+{% block nav %}
+  {% if puzzles and puzzles.available %}
+    <a class="tab" href="/u/{{ player.username }}/puzzles">Puzzles</a>
+  {% endif %}
+{% endblock %}
 
 {% block content %}
 <article class="report">
@@ -42,6 +51,7 @@
   {% include "partials/headline.html" %}
   {% include "partials/openings.html" %}
   {% include "partials/progression.html" %}
+  {% if puzzles %}{% include "partials/puzzles.html" %}{% endif %}
 
   {% endif %}
 
@@ -57,7 +67,10 @@
 {% block scripts %}
 {# Data first, as an inert JSON block, then the script that reads it. Nothing is
    interpolated into JavaScript source -- see `json_data` for why that matters
-   when a player's name comes from somewhere other than us. #}
+   when a player's name comes from somewhere other than us.
+
+   No puzzle script here: the report only previews the positions as diagrams,
+   and the boards that can be played are on their own page. #}
 <script id="chart-data" type="application/json">{{ chart_data|json_data }}</script>
 <script src="/static/chart.umd.min.js?v={{ asset_v }}"></script>
 <script src="/static/charts.js?v={{ asset_v }}"></script>

@@ -9,6 +9,7 @@ import asyncio
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 from alembic.config import Config
@@ -42,8 +43,43 @@ def _test_database_url() -> str:
     return url if url.rsplit("/", 1)[-1].endswith("_test") else f"{url}_test"
 
 
+#: The Redis database the tests get to themselves. Redis ships with sixteen of
+#: them, 0 to 15, and applications take 0 by default, so the far end is the one
+#: least likely to be somebody's.
+TEST_REDIS_DB = 15
+
+
+def _test_redis_url() -> str:
+    """Resolve the Redis tests run against, on a database of its own.
+
+    The same care as ``_test_database_url``, for a sharper reason. Tests flush
+    between each other, and an arq queue is Redis keys like any other -- so a
+    worker pointed at the same database will pick up a *test's* job, run it
+    against whatever Postgres that worker is connected to, and leave the test's
+    own burst worker draining a queue that is already empty. The report row the
+    test is waiting on stays pending and the assertion fails somewhere far from
+    the cause.
+
+    That failure is silent, intermittent, and looks exactly like a bug in the
+    code under test. It is not: it is a `docker compose up` in another terminal.
+
+    TEST_REDIS_URL wins outright; otherwise REDIS_URL is redirected to
+    ``TEST_REDIS_DB`` on the same server.
+    """
+    if explicit := os.getenv("TEST_REDIS_URL"):
+        return explicit
+    url = urlsplit(os.getenv("REDIS_URL", LOCAL_REDIS_URL))
+    return urlunsplit(url._replace(path=f"/{TEST_REDIS_DB}"))
+
+
+def _redis_target(url: str) -> tuple[str, str]:
+    """Server and database, for comparing two URLs that may be spelled differently."""
+    parts = urlsplit(url)
+    return parts.netloc, parts.path.strip("/") or "0"
+
+
 TEST_DATABASE_URL = _test_database_url()
-TEST_REDIS_URL = os.getenv("TEST_REDIS_URL", os.getenv("REDIS_URL", LOCAL_REDIS_URL))
+TEST_REDIS_URL = _test_redis_url()
 
 
 async def _reset_schema() -> None:
@@ -72,6 +108,18 @@ def _migrate() -> None:
         raise RuntimeError(
             f"Refusing to drop the schema of {db_name!r}: the test database name "
             "must end in '_test'. Set TEST_DATABASE_URL."
+        )
+
+    # Only reachable by setting TEST_REDIS_URL to the application's own, which
+    # `_test_redis_url` otherwise makes impossible. Worth the four lines: the
+    # symptom is a handful of worker tests failing one run in ten, and nothing
+    # about it points here.
+    app_redis = os.getenv("REDIS_URL", LOCAL_REDIS_URL)
+    if _redis_target(TEST_REDIS_URL) == _redis_target(app_redis):
+        raise RuntimeError(
+            f"TEST_REDIS_URL points at {TEST_REDIS_URL!r}, the same Redis database "
+            f"as REDIS_URL. Tests flush it and enqueue jobs into it, so any worker "
+            "running against it will steal them. Use a different database number."
         )
 
     asyncio.run(_reset_schema())

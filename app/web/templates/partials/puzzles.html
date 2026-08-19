@@ -1,0 +1,47 @@
+{# The report's trailer for the puzzle page: a few of the real positions as
+   diagrams, and no way to answer them here.
+
+   Diagrams rather than boards on purpose. A playable board is a different mode
+   of attention from the rest of the report -- everything above this is read,
+   and this asks to be worked at -- so it gets a page where that is the only
+   thing on offer, and the report gets a picture of what is on it.
+
+   The whole block is one link. Flow content inside an anchor is valid, and it
+   means the diagrams are the target as much as the words are. #}
+<section class="card puzzles-teaser">
+  <h2>Puzzles</h2>
+
+  {% if not puzzles.available %}
+    <p class="lede">Nothing to replay this year.</p>
+    <p class="fine">{{ puzzles.reason }}</p>
+  {% else %}
+    {# A render-time count, not a stored one: how many diagrams the report
+       shows is a decision about this page, and freezing it into a payload
+       would mean a report built last week could not be told otherwise. #}
+    {% set preview = puzzles.puzzles[:puzzles_teased] %}
+    <a class="teaser" href="/u/{{ player.username }}/puzzles">
+      <p class="lede">Learn from your mistakes.</p>
+
+      {# Decoration, and marked as such: the same positions are announced
+         properly on the page these link to, and a screen reader walking 320
+         empty cells to reach the sentence below would be worse than no
+         diagrams at all. #}
+      <div class="board-strip" aria-hidden="true">
+        {% for item in preview %}
+          <div class="board board--mini">
+            {% for square in item.fen|board(item.color) %}
+              <span class="sq {{ 'sq--dark' if square.dark else 'sq--light' }}">
+                {%- if square.piece %}<b class="pc pc--{{ square.piece }}"></b>{% endif -%}
+              </span>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <p class="teaser-cta">
+        <b>{{ puzzles.shown|plural("position") }} from your own games</b>
+        &mdash; the moments you handed one over. Play them &rarr;
+      </p>
+    </a>
+  {% endif %}
+</section>

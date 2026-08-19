@@ -20,6 +20,7 @@ SECTIONS = (
     "time_behaviour",
     "progression",
     "player_type",
+    "puzzles",
 )
 
 
