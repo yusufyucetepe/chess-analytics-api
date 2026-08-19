@@ -30,13 +30,28 @@ def test_the_suite_does_not_share_a_redis_database_with_the_application() -> Non
 
 
 def test_the_suite_does_not_share_a_postgres_database_with_the_application() -> None:
+    """The name is the invariant, not that it differs from DATABASE_URL.
+
+    In CI there is only one Postgres and it *is* the test one, so the two URLs
+    are legitimately equal there. What must always hold is that whatever the
+    suite is about to drop the schema of is named as a test database.
+    """
     assert TEST_DATABASE_URL.rsplit("/", 1)[-1].endswith("_test")
-    assert os.getenv("DATABASE_URL") != TEST_DATABASE_URL
 
 
-def test_the_redis_database_is_redirected_rather_than_inherited() -> None:
-    """The default has to move the database number, not just pass REDIS_URL on."""
-    assert _redis_target(TEST_REDIS_URL)[1] == str(TEST_REDIS_DB)
+def test_the_redis_database_is_redirected_rather_than_inherited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default has to move the database number, not just pass REDIS_URL on.
+
+    Asked of the resolver directly rather than of the ambient TEST_REDIS_URL:
+    this is about what happens when nobody sets one, which is the case that
+    bit us, and it should not depend on how the run was configured.
+    """
+    monkeypatch.delenv("TEST_REDIS_URL", raising=False)
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6380/0")
+
+    assert _redis_target(_test_redis_url())[1] == str(TEST_REDIS_DB)
 
 
 def test_an_explicit_test_url_is_taken_as_given(monkeypatch: pytest.MonkeyPatch) -> None:

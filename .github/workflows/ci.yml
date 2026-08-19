@@ -51,7 +51,11 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       # Stated explicitly so the test database is never inferred.
       TEST_DATABASE_URL: postgresql+asyncpg://chess:chess@localhost:5432/chess_test
-      TEST_REDIS_URL: redis://localhost:6379/0
+      # A database of its own, the same one `_test_redis_url` picks locally.
+      # Nothing else runs against this service, so sharing db 0 would be safe
+      # here -- but CI is worth nothing if it is not running what developers
+      # run, and locally sharing it means a worker eats the tests' jobs.
+      TEST_REDIS_URL: redis://localhost:6379/15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
